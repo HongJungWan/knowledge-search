@@ -1,0 +1,58 @@
+[
+  {
+    "domain": "settlement",
+    "title": "  정산 주기 및 마감 정책  ",
+    "body": "정산은 주(週) 단위로 집계하며   매주 화요일 23시에 전주 거래를 마감한다.\t마감 이후 들어온 거래는 다음 주기로 이월된다. 월말이 주기 중간에 걸리면 월 마감을 우선한다.",
+    "sourceUrl": "https://wiki.internal/settlement/cycle",
+    "codeValues": { "settlement_cycle": "WEEKLY" }
+  },
+  {
+    "domain": "SETTLEMENT",
+    "title": "가맹점 수수료율 체계",
+    "body": "기본 가맹점 수수료율은 거래액의 2.8%이며, 월 거래액 1억원 초과 구간은 2.3%로 체감 적용한다. 영세·중소 가맹점은 우대 수수료율(0.8%~1.6%)을 별도 적용한다.",
+    "sourceUrl": "https://wiki.internal/settlement/fee-rate",
+    "codeValues": { "merchant_grade": "GENERAL" }
+  },
+  {
+    "domain": "settlement",
+    "title": "미정산 거래(PENDING) 처리 기준",
+    "body": "정산 마감 시점에 검증이 끝나지 않은 거래는 미정산(PENDING) 상태로 둔다. 미정산 거래는 검증 완료 후 다음 정산 주기에 자동 편입되며, 7영업일 이상 미정산이면 운영팀에 알림을 보낸다.",
+    "sourceUrl": "https://wiki.internal/settlement/pending",
+    "codeValues": { "settlement_status": "PENDING" }
+  },
+  {
+    "domain": "settlement",
+    "title": "정산 보류(HOLD) 사유 및 해제",
+    "body": "사기 의심, 분쟁 진행, 가맹점 정보 불일치, 세금계산서 미발행 시 정산을 보류(HOLD)한다. 보류 사유가 해소되면 운영팀 승인 후 보류를 해제하고 다음 주기에 지급한다.",
+    "sourceUrl": "https://wiki.internal/settlement/hold",
+    "codeValues": { "settlement_status": "HOLD" }
+  },
+  {
+    "domain": "settlement",
+    "title": "환불·취소 차감 정산 규칙",
+    "body": "정산 완료 전 환불은 해당 거래를 정산 대상에서 제외한다. 정산 완료 후 환불은 차회 정산금에서 차감하며, 차감액이 차회 정산금을 초과하면 가맹점에 별도 청구한다.",
+    "sourceUrl": "https://wiki.internal/settlement/refund",
+    "codeValues": { "settlement_status": "DONE", "adjustment_type": "REFUND" }
+  },
+  {
+    "domain": "settlement",
+    "title": "정산 지급일 규칙(T+2)",
+    "body": "정산 확정 후 2영업일째(T+2)에 가맹점 계좌로 지급한다. 지급일이 공휴일이면 다음 영업일로 순연한다. 빠른정산 가입 가맹점은 T+1 로 단축 지급한다.",
+    "sourceUrl": "https://wiki.internal/settlement/payout",
+    "codeValues": { "payout_rule": "T_PLUS_2" }
+  },
+  {
+    "domain": "settlement",
+    "title": "미정산 거래(PENDING) 처리 기준",
+    "body": "정산 마감 시점에 검증이 끝나지 않은 거래는 미정산(PENDING) 상태로 둔다. 미정산 거래는 검증 완료 후 다음 정산 주기에 자동 편입되며, 7영업일 이상 미정산이면 운영팀에 알림을 보낸다.",
+    "sourceUrl": "https://wiki.internal/settlement/pending-duplicate",
+    "codeValues": { "settlement_status": "PENDING" }
+  },
+  {
+    "domain": "settlement",
+    "title": "",
+    "body": "제목이 비어 있어 ETL 필수 필드 검증에서 걸러져야 하는 레코드.",
+    "sourceUrl": "https://wiki.internal/settlement/invalid",
+    "codeValues": {}
+  }
+]

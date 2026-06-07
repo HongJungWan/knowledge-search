@@ -1,0 +1,148 @@
+# ===================================================================
+# knowledge-search — 사내 지식 검색(RAG) 백엔드 + MCP 서버 (정산 도메인)
+# 기본/LOCAL 프로필: H2 in-memory (외부 의존성 없음). AWS 미연결.
+# 앱은 AWS 없이 부팅하고 MCP 도구를 H2 위에서 제공한다.
+# ===================================================================
+
+server:
+  port: 8095
+  shutdown: graceful
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: knowledge-search
+
+  # 기본 활성 프로필: local (H2 + 시드 데이터)
+  profiles:
+    active: local
+
+  # --- DATASOURCE: H2 in-memory (기본/LOCAL) ---
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:knowledgedb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # --- JPA/HIBERNATE ---
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop          # LOCAL: 부팅 시 스키마 생성, 종료 시 제거
+    defer-datasource-initialization: true   # data.sql 시드를 엔티티 DDL 이후 실행
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 50
+        default_batch_fetch_size: 16
+
+  # --- SQL INIT (data.sql 시드) ---
+  sql:
+    init:
+      mode: always
+
+  # --- SPRING BATCH (ETL, PRD §7) ---
+  batch:
+    jdbc:
+      initialize-schema: always      # 배치 메타데이터 스키마 생성 (H2)
+    job:
+      enabled: false                 # 부팅 시 자동 실행 안 함. /etl/run 으로 수동 트리거(PRD §7.2)
+
+  # --- JACKSON/JSON ---
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      fail-on-empty-beans: false
+    default-property-inclusion: non_null
+    time-zone: UTC
+
+# --- metadata-ontology 연동 (PRD §2/§6) ---
+# 기본 OFF — 비활성 시 원본 질의를 그대로 쓰는 no-op 폴백.
+metadata:
+  enabled: false
+  # TODO(AWS): 운영 배포 시 METADATA_BASE_URL 환경변수로 주입한다.
+  base-url: http://localhost:8096
+
+# --- 검색 계층 플래그 (기본 OFF — AWS 미연결) ---
+# Redshift Spectrum / Glue 외부 테이블 검색은 이 플래그 뒤에 둔다.
+# 켜도 현재는 가드에 막혀 동작하지 않는다(// TODO(AWS)).
+search:
+  spectrum:
+    enabled: false
+
+# --- ACTUATOR ---
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+      base-path: /management
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+# --- SPRINGDOC / SWAGGER ---
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  packages-to-scan: com.hris.knowledgesearch
+
+logging:
+  level:
+    root: INFO
+    com.hris.knowledgesearch: INFO
+    org.hibernate: WARN
+
+# ===================================================================
+# TODO(AWS): 실제 Redshift datasource (나중에 실제 값 기재)
+# Redshift 는 PostgreSQL 호환 프로토콜이라 JDBC 로 붙고 QueryDSL 동적 조건도 그대로 쓴다.
+# 단 Hibernate 공식 Redshift 방언이 없어 PostgreSQLDialect 를 쓰되 Redshift 미지원 기능은 피한다(PRD §3.1).
+# 엔티티는 읽기 위주 매핑, 쓰기는 ETL/배치 경로로 모은다. DDL 은 Flyway 대신 Redshift 마이그레이션 스크립트.
+# 자격증명은 환경변수/EC2 환경 파일로 주입 — 저장소 평문 커밋 금지.
+# ---
+# spring:
+#   config:
+#     activate:
+#       on-profile: prod
+#   datasource:
+#     driver-class-name: com.amazon.redshift.jdbc.Driver   # build.gradle 에 redshift-jdbc42 추가 필요
+#     url: jdbc:redshift://${REDSHIFT_HOST}:${REDSHIFT_PORT:5439}/${REDSHIFT_DB}
+#     username: ${REDSHIFT_USER}
+#     password: ${REDSHIFT_PASS}
+#     hikari:
+#       maximum-pool-size: 10
+#       auto-commit: false
+#   jpa:
+#     database-platform: org.hibernate.dialect.PostgreSQLDialect
+#     hibernate:
+#       ddl-auto: validate          # 운영: Redshift 마이그레이션 스크립트가 DDL 관리, Hibernate 는 검증만
+#
+# ---
+# TODO(AWS): Redshift Spectrum + Glue Data Catalog + S3 (나중에 실제 값 기재)
+# search.spectrum.enabled=true 로 켜고 아래 값을 채운다. ETL 종료 시 Glue 파티션 등록(PRD §4.2/§7).
+# search:
+#   spectrum:
+#     enabled: true
+#     external-schema: spectrum_knowledge      # Redshift 외부 스키마(= Glue DB 매핑)
+#     archive-table: knowledge_archive         # S3 Parquet 외부 테이블
+# aws:
+#   region: ${AWS_REGION:ap-northeast-2}
+#   glue:
+#     database: ${GLUE_DATABASE}               # Glue Data Catalog 데이터베이스명
+#   s3:
+#     bucket: ${S3_BUCKET}                      # Parquet 데이터 레이크 버킷
+#     prefix: knowledge/                        # 파티션 경로: s3://<bucket>/knowledge/dt=YYYY-MM-DD/
+# ===================================================================

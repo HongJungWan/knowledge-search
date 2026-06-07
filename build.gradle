@@ -1,0 +1,69 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.hris'
+version = '0.0.1-SNAPSHOT'
+description = 'Knowledge Search (RAG) backend + MCP server for the settlement domain (Spring Boot)'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot 의존성
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-batch'   // ETL 적재 파이프라인 (PRD §7)
+
+    // QueryDSL 의존성 (5.1.0 jakarta) — 동적 조건 조립 (PRD §6)
+    implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
+    implementation 'com.querydsl:querydsl-core:5.1.0'
+    annotationProcessor 'com.querydsl:querydsl-apt:5.1.0:jakarta'
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+
+    // Lombok 의존성
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // DataBase 의존성
+    implementation 'com.h2database:h2'           // 로컬/기본 프로필 (in-memory) — 무 AWS 부팅
+    runtimeOnly 'org.postgresql:postgresql'      // Redshift 는 PostgreSQL 호환 프로토콜. TODO(AWS): Redshift JDBC 드라이버(com.amazon.redshift:redshift-jdbc42)는 연결 확정 시 추가한다.
+
+    // 캐시 의존성 (metadata /resolve 결과 캐싱, PRD §6)
+    implementation 'org.springframework.boot:spring-boot-starter-cache'   // CaffeineCacheManager 제공
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+
+    // Swagger OpenAPI 의존성
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+
+    // Spring AI MCP Server (PRD §5/§12)
+    // TODO: verify Spring AI artifact/version (PRD §12) — 최신 릴리스로 확정 필요.
+    implementation platform('org.springframework.ai:spring-ai-bom:1.0.0')
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+
+    // Testing 의존성
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

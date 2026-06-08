@@ -1,5 +1,7 @@
 package com.hris.knowledgesearch.infra.metadata;
 
+import com.hris.knowledgesearch.application.knowledge.port.MetadataResolvePort;
+import com.hris.knowledgesearch.application.knowledge.port.MetadataResolveResult;
 import com.hris.knowledgesearch.global.config.CacheConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,7 +20,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class MetadataClient {
+public class MetadataClient implements MetadataResolvePort {
 
     private final boolean enabled;
     private final RestClient restClient;

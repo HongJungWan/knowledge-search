@@ -1,4 +1,4 @@
-package com.hris.knowledgesearch.presentation.knowledge.dto;
+package com.hris.knowledgesearch.application.knowledge.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;

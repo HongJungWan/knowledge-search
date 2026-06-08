@@ -1,9 +1,9 @@
 package com.hris.knowledgesearch.presentation.mcp;
 
 import com.hris.knowledgesearch.application.knowledge.KnowledgeSearchService;
-import com.hris.knowledgesearch.presentation.knowledge.dto.KnowledgeDetailResponse;
-import com.hris.knowledgesearch.presentation.knowledge.dto.KnowledgeSummaryResponse;
-import com.hris.knowledgesearch.presentation.knowledge.dto.SchemaInfoResponse;
+import com.hris.knowledgesearch.application.knowledge.dto.KnowledgeDetailResponse;
+import com.hris.knowledgesearch.application.knowledge.dto.KnowledgeSummaryResponse;
+import com.hris.knowledgesearch.application.knowledge.dto.SchemaInfoResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;

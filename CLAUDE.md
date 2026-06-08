@@ -42,11 +42,22 @@
 - **DDL**: H2는 `create-drop`. Redshift DDL은 Flyway가 아니라 별도 마이그레이션 스크립트(PRD §3.1).
 - 검색 SQL은 자유 입력을 받지 않는다 — 허용 패턴 + 바인딩만(PRD §6).
 
-## DDD 하네스 (opinionated-harness-template)
+## DDD 하네스 (opinionated-harness-template — 실용 헥사고날 + DDD)
 
-> 코드 작성·수정 시 `.claude/hooks/harness.mjs`가 자동 검사한다. 상세는 `docs/HARNESS.md`. 카파시 4원칙과 같은 철학.
+> 코드 작성·수정 시 `.claude/hooks/harness.mjs`가 자동 검사하고(로컬 빠른 피드백), ArchUnit 이 CI 에서 구조 규칙을 정밀 강제한다. 상세는 `docs/HARNESS.md`. 카파시 4원칙과 같은 철학. 하네스는 **DEFAULT(verbatim) config** 를 쓴다 — 레이어는 패키지명으로 매핑된다.
 
-- **레이어 매핑(이 프로젝트 기준)**: `entity`=domain · `service`/`*Service`=application · `repository`/`infra`/`etl`=infrastructure · `controller`/`dto`/`mcp`=presentation. (`.claude/hooks/harness.config.json`)
-- **차단(block) 규칙**: 엔티티(domain)에 `@Service`/`@Transactional`/`@Setter`/`@Data`/public setter/`.now()`/`UUID.randomUUID()` 금지 · 빈약 엔티티(행위 없는 데이터 홀더) 금지 · 필드주입(`@Autowired`) 금지(생성자 주입) · application→infra 임포트 금지(포트 사용) · `./gradlew`만 사용.
-- **application↛infra 경계**: metadata 호출은 `application.knowledge.port.MetadataResolvePort`(포트)에 의존, 구현은 `infra.metadata.MetadataClient`.
+### 패키지 구조 (루트 `com.hris.knowledgesearch`)
+| 레이어 | 패키지 | 내용 |
+|---|---|---|
+| domain | `domain.knowledge` | `KnowledgeRecord`/`SearchLog`(`@AggregateRoot`+`@Entity`, 행위 메서드 보유) · 리포지토리 **포트**(`KnowledgeRecordRepository`/`SearchLogRepository`, 순수 인터페이스 — Spring 타입 없음) |
+| application | `application.knowledge` | `KnowledgeSearchService`(`@Service`, 흐름 제어) · `application.knowledge.port.{MetadataResolvePort, MetadataResolveResult}`(아웃바운드 포트) |
+| infrastructure | `infrastructure.*` | `persistence.knowledge.*RepositoryImpl`(포트 어댑터 = Spring Data `*JpaRepository` + QueryDSL) · `metadata.MetadataClient`(MetadataResolvePort 구현) · `etl.*`(배치/유틸) · `config.*`(QueryDsl/Cache/OpenApi/Mcp/JpaAuditing) |
+| presentation | `presentation.*` | `knowledge.KnowledgeSearchController` + `knowledge.dto.*` · `mcp.KnowledgeSearchTools`(@Tool 인바운드 어댑터) · `etl.EtlController` |
+| (횡단) | `global.*` · `shared.ddd.*` | BaseEntity/ApiResponse/Exception/Health(레이어 외 횡단) · DDD 마커 5종 |
+
+- **마커**: `shared.ddd.{AggregateRoot,AggregateInternal,ValueObject,DomainEvent,DomainService}`. AR 은 `KnowledgeRecord`/`SearchLog` 에만. VO/AggregateInternal 은 현재 미사용.
+- **포트/어댑터(검증된 검색 보존)**: 도메인 포트는 앱/ETL 이 쓰는 메서드만 가진 순수 인터페이스(`search`/`findById`/`existsByContentHash`/`save`). QueryDSL 랭킹·토큰 OR·코드값 매칭·기간 토큰 skip 로직은 `KnowledgeRecordRepositoryImpl` 에 그대로 둔다(동작 동일).
+- **차단(block) 규칙**: 도메인에 `@Service`/`@Transactional`/`@Setter`/`@Data`/public setter/`.now()`/`UUID.randomUUID()` 금지 · 빈약 엔티티 금지 · 필드주입(`@Autowired`) 금지(생성자 주입) · domain→바깥레이어 임포트 금지 · application→infra 임포트 금지(포트 사용) · 도메인 `*RepositoryImpl` 파일명 금지 · `./gradlew`만 사용.
+- **application↛infra 경계**: metadata 호출은 `application.knowledge.port.MetadataResolvePort`(포트)에 의존, 구현은 `infrastructure.metadata.MetadataClient`.
+- **ArchUnit**(`src/test/java/.../archunit`): DOMAIN_PURITY · REPOSITORY_IMPL_IN_INFRA · AGGREGATE_ACCESS · ID_REFERENCE_BETWEEN_AGGREGATES · VALUE_OBJECT_IMMUTABLE · NO_FIELD_INJECTION. `./gradlew test` 에서 함께 돈다. CI: `.github/workflows/ddd-archunit.yml`.
 - **커맨드**: `/ddd-review`(변경분 감사) · `/ddd-fix`(점진 수정) · `/verify`(훅+테스트). 훅 실행에 Node.js 필요.

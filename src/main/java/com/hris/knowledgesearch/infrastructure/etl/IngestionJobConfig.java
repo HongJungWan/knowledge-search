@@ -1,6 +1,8 @@
 package com.hris.knowledgesearch.infrastructure.etl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hris.knowledgesearch.application.knowledge.command.IngestKnowledgeCommand;
+import com.hris.knowledgesearch.application.knowledge.port.SettlementSourceAcl;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +20,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.util.StringUtils;
 
 /**
  * 정산 지식 적재 잡 (Spring Batch, PRD §7).
@@ -76,39 +77,22 @@ public class IngestionJobConfig {
     /**
      * 정제·검증·해시 프로세서.
      * <p>
-     * 필수 필드(title/body) 누락 레코드는 null 반환으로 skip 하고 사유를 남긴다.
+     * 외부 소스 → 도메인 번역은 ACL({@link SettlementSourceAcl})에 위임한다. ACL 이 빈(skip)을 돌려주면
+     * (필수 필드 누락) null 반환으로 해당 아이템을 필터링하고 사유를 남긴다.
      */
     @Bean
-    public ItemProcessor<SettlementSourceItem, KnowledgeRecord> settlementProcessor(ObjectMapper objectMapper) {
+    public ItemProcessor<SettlementSourceItem, KnowledgeRecord> settlementProcessor(SettlementSourceAcl settlementSourceAcl) {
         return item -> {
-            // (1) 필수 필드 검증
-            if (!StringUtils.hasText(item.getTitle()) || !StringUtils.hasText(item.getBody())) {
+            IngestKnowledgeCommand cmd = settlementSourceAcl.toIngestCommand(
+                    item.getDomain(), item.getTitle(), item.getBody(), item.getSourceUrl(), item.getCodeValues())
+                    .orElse(null);
+            if (cmd == null) {
                 log.warn("[ETL] 필수 필드 누락으로 skip: {}", item);
                 return null; // null → 해당 아이템 필터링(skip)
             }
-
-            // (2) 문자열 정규화
-            String domain = StringUtils.hasText(item.getDomain())
-                    ? TextNormalizer.normalize(item.getDomain()).toUpperCase()
-                    : "SETTLEMENT";
-            String title = TextNormalizer.normalize(item.getTitle());
-            String body = TextNormalizer.normalize(item.getBody());
-            String sourceUrl = item.getSourceUrl() == null ? null : TextNormalizer.normalize(item.getSourceUrl());
-
-            String codeValuesJson = null;
-            if (item.getCodeValues() != null && !item.getCodeValues().isEmpty()) {
-                try {
-                    codeValuesJson = objectMapper.writeValueAsString(item.getCodeValues());
-                } catch (Exception e) {
-                    log.warn("[ETL] codeValues 직렬화 실패: {}", e.getMessage());
-                }
-            }
-
-            // (3) SHA-256 content_hash
-            String contentHash = HashUtil.contentHash(domain, title, body);
-
             return KnowledgeRecord.forIngestion(
-                    domain, title, body, sourceUrl, codeValuesJson, java.time.Instant.now(), contentHash);
+                    cmd.domain(), cmd.title(), cmd.body(), cmd.sourceUrl(),
+                    cmd.codeValues(), cmd.sourceUpdatedAt(), cmd.contentHash());
         };
     }
 

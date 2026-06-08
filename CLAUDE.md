@@ -50,14 +50,39 @@
 | 레이어 | 패키지 | 내용 |
 |---|---|---|
 | domain | `domain.knowledge` | `KnowledgeRecord`/`SearchLog`(`@AggregateRoot`+`@Entity`, 행위 메서드 보유) · 리포지토리 **포트**(`KnowledgeRecordRepository`/`SearchLogRepository`, 순수 인터페이스 — Spring 타입 없음) |
-| application | `application.knowledge` | `KnowledgeSearchService`(`@Service`, 흐름 제어) · `dto.*`(요청/응답 DTO — 애플리케이션 계약) · `port.{MetadataResolvePort, MetadataResolveResult}`(아웃바운드 포트) |
+| application | `application.knowledge` | `KnowledgeSearchService`(`@Service`, 흐름 제어) · `command.*`(입력 커맨드: `SearchKnowledgeCommand`/`IngestKnowledgeCommand`) · `dto.*`(응답 DTO — 애플리케이션 계약) · `port.{MetadataResolvePort, MetadataResolveResult, SettlementSourceAcl}`(아웃바운드 포트/ACL) |
 | infrastructure | `infrastructure.*` | `persistence.knowledge.*RepositoryImpl`(포트 어댑터 = Spring Data `*JpaRepository` + QueryDSL) · `metadata.MetadataClient`(MetadataResolvePort 구현) · `etl.*`(배치/유틸) · `config.*`(QueryDsl/Cache/OpenApi/Mcp/JpaAuditing) |
-| presentation | `presentation.*` | `knowledge.KnowledgeSearchController` · `mcp.KnowledgeSearchTools`(@Tool 인바운드 어댑터) · `etl.EtlController` (DTO 는 application.knowledge.dto) |
-| (횡단) | `global.*` · `shared.ddd.*` | BaseEntity/ApiResponse/Exception/Health(레이어 외 횡단) · DDD 마커 5종 |
+| presentation | `presentation.*` | `knowledge.KnowledgeSearchController`(`@RequestBody`는 `command.SearchKnowledgeCommand`) · `mcp.KnowledgeSearchTools`(@Tool 인바운드 어댑터, primitives 로 서비스 호출) · `etl.EtlController` (응답 DTO 는 application.knowledge.dto) |
+| (횡단) | `global.*` · `shared.ddd.*` | BaseEntity/ApiResponse/Exception/Health(레이어 외 횡단) · DDD 마커 7종 |
 
-- **마커**: `shared.ddd.{AggregateRoot,AggregateInternal,ValueObject,DomainEvent,DomainService}`. AR 은 `KnowledgeRecord`/`SearchLog` 에만. VO/AggregateInternal 은 현재 미사용.
+- **마커**: `shared.ddd.{AggregateRoot,AggregateInternal,ValueObject,DomainEvent,DomainService,Subdomain,SubdomainType}`. AR 은 `KnowledgeRecord`/`SearchLog` 에만. VO/AggregateInternal 은 현재 미사용.
+
+### 서브도메인 분류 (`@Subdomain`)
+| 타입 | 서브도메인 | 근거 |
+|---|---|---|
+| `KnowledgeRecord` | **CORE** | 정형 사내 지식 검색이 이 서비스의 경쟁 우위(검색 랭킹·코드값 매칭). 설계 노력 집중. |
+| `SearchLog` | **SUPPORTING** | 관측성·사전 보강 분석을 돕지만 차별화 요소는 아님. |
+| (없음) | GENERIC | 현재 ks 에 GENERIC 타입 없음(외부 대체 가능 범용 영역 부재). |
+
+### 유비쿼터스 언어 (UL glossary)
+| 용어 | 의미 |
+|---|---|
+| **KnowledgeRecord** | 정형 사내 지식 한 건(애그리거트 루트, CORE). `domain`으로 분류, `codeValues`로 코드값 검색. |
+| **KnowledgeDomain** | 지식 분류 축(예: `SETTLEMENT`). `KnowledgeRecord.domain` 필드. QueryDSL 질의 대상이므로 VO 미적용(아래 Deferred). |
+| **StandardizedQuery** | metadata 가 정규화한 질의(`MetadataResolveResult.normalizedQuery`). 비활성 시 원본 질의 폴백. |
+| **CodeFilter** | 코드값 일치 필터(`{"settlement_status":"PENDING"}`). 호출자 filters 가 metadata 매핑보다 우선. |
+| **SearchKnowledgeCommand** | 검색 입력 커맨드(REST `@RequestBody`). 요청 DTO 를 대체. JSON 형태는 기존과 동일. |
+| **IngestKnowledgeCommand** | ETL 적재 커맨드(ACL 산출물). 정규화·해시 완료 상태로 `KnowledgeRecord.forIngestion`에 직행. |
+| **SettlementSourceItem** | 외부 정산 소스 원본(공백/대소문자/중복 포함 JSON). ACL 경계 바깥. |
+| **SearchLog** | 검색 호출 로그(SUPPORTING). 미적중·저점수 질의를 사전 보강 후보로 식별. |
+
+### Deferred (근거 동봉)
+- **query-target VO 미도입**: `domain`/`codeValues`/`contentHash`/`sourceUrl` 은 QueryDSL 질의·인덱스 대상이라 VO 로 감싸면 검색 SQL/랭킹 경로가 깨질 위험. 현 단계에선 String 유지(동작 보존 우선).
+- **도메인 이벤트 미도입**: 소비자(consumer)가 아직 없음. 이벤트만 발행하면 데드코드. 필요 시점에 도입.
 - **포트/어댑터(검증된 검색 보존)**: 도메인 포트는 앱/ETL 이 쓰는 메서드만 가진 순수 인터페이스(`search`/`findById`/`existsByContentHash`/`save`). QueryDSL 랭킹·토큰 OR·코드값 매칭·기간 토큰 skip 로직은 `KnowledgeRecordRepositoryImpl` 에 그대로 둔다(동작 동일).
 - **차단(block) 규칙**: 도메인에 `@Service`/`@Transactional`/`@Setter`/`@Data`/public setter/`.now()`/`UUID.randomUUID()` 금지 · 빈약 엔티티 금지 · 필드주입(`@Autowired`) 금지(생성자 주입) · domain→바깥레이어 임포트 금지 · application→infra 임포트 금지(포트 사용) · 도메인 `*RepositoryImpl` 파일명 금지 · `./gradlew`만 사용.
-- **application↛infra 경계**: metadata 호출은 `application.knowledge.port.MetadataResolvePort`(포트)에 의존, 구현은 `infrastructure.metadata.MetadataClient`.
-- **ArchUnit**(`src/test/java/.../archunit`): DOMAIN_PURITY · REPOSITORY_IMPL_IN_INFRA · AGGREGATE_ACCESS · ID_REFERENCE_BETWEEN_AGGREGATES · VALUE_OBJECT_IMMUTABLE · NO_FIELD_INJECTION. `./gradlew test` 에서 함께 돈다. CI: `.github/workflows/ddd-archunit.yml`.
+- **application↛infra 경계**: metadata 호출은 `application.knowledge.port.MetadataResolvePort`(포트=ACL)에 의존, 구현은 `infrastructure.metadata.MetadataClient`.
+- **ACL(anti-corruption)**: ① metadata 컨텍스트 → `MetadataResolvePort`/`MetadataClient`(포트+어댑터가 ACL 역할). ② 외부 정산 소스 → `application.knowledge.port.SettlementSourceAcl`(인터페이스) + `infrastructure.etl.SettlementSourceAclAdapter`(정규화·해시·기본값·검증). ETL 프로세서는 ACL 호출 후 `KnowledgeRecord.forIngestion(...)`. 컨텍스트 맵: `.claude/docs/context-map.md`.
+- **입력 커맨드**: REST `@RequestBody`는 `command.SearchKnowledgeCommand`(record, `@NotBlank`+compact 생성자 검증). 서비스 시그니처는 primitives 유지(최소 변경, 동작 동일). MCP 도구는 영향 없음.
+- **ArchUnit**(`src/test/java/.../archunit`) 10종: DOMAIN_PURITY · REPOSITORY_IMPL_IN_INFRA · AGGREGATE_ACCESS · ID_REFERENCE_BETWEEN_AGGREGATES · VALUE_OBJECT_IMMUTABLE · NO_FIELD_INJECTION · DOMAIN_ENTITY_MARKED · AGGREGATE_ROOT_HAS_FACTORY · CORE_NOT_DEPEND_ON_GENERIC(GENERIC 부재로 vacuous) · REQUEST_INPUT_IS_COMMAND(@RequestBody→`*Command`). `./gradlew test` 에서 함께 돈다. CI: `.github/workflows/ddd-archunit.yml`.
 - **커맨드**: `/ddd-review`(변경분 감사) · `/ddd-fix`(점진 수정) · `/verify`(훅+테스트). 훅 실행에 Node.js 필요.

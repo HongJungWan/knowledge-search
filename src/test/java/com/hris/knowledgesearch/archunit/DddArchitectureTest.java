@@ -14,4 +14,6 @@ class DddArchitectureTest {
     @ArchTest static final ArchRule idReference = DddRules.ID_REFERENCE_BETWEEN_AGGREGATES;
     @ArchTest static final ArchRule valueObjectImmutable = DddRules.VALUE_OBJECT_IMMUTABLE;
     @ArchTest static final ArchRule noFieldInjection = DddRules.NO_FIELD_INJECTION;
+    @ArchTest static final ArchRule domainEntityMarked = DddRules.DOMAIN_ENTITY_MARKED;
+    @ArchTest static final ArchRule aggregateRootHasFactory = DddRules.AGGREGATE_ROOT_HAS_FACTORY;
 }

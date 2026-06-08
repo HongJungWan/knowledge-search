@@ -41,3 +41,12 @@
 - **`body`는 CLOB** → 키워드 매칭에 `lower()` 불가(현재 대소문자 구분 `contains`). 한글엔 무영향, Redshift 경로는 별도.
 - **DDL**: H2는 `create-drop`. Redshift DDL은 Flyway가 아니라 별도 마이그레이션 스크립트(PRD §3.1).
 - 검색 SQL은 자유 입력을 받지 않는다 — 허용 패턴 + 바인딩만(PRD §6).
+
+## DDD 하네스 (opinionated-harness-template)
+
+> 코드 작성·수정 시 `.claude/hooks/harness.mjs`가 자동 검사한다. 상세는 `docs/HARNESS.md`. 카파시 4원칙과 같은 철학.
+
+- **레이어 매핑(이 프로젝트 기준)**: `entity`=domain · `service`/`*Service`=application · `repository`/`infra`/`etl`=infrastructure · `controller`/`dto`/`mcp`=presentation. (`.claude/hooks/harness.config.json`)
+- **차단(block) 규칙**: 엔티티(domain)에 `@Service`/`@Transactional`/`@Setter`/`@Data`/public setter/`.now()`/`UUID.randomUUID()` 금지 · 빈약 엔티티(행위 없는 데이터 홀더) 금지 · 필드주입(`@Autowired`) 금지(생성자 주입) · application→infra 임포트 금지(포트 사용) · `./gradlew`만 사용.
+- **application↛infra 경계**: metadata 호출은 `application.knowledge.port.MetadataResolvePort`(포트)에 의존, 구현은 `infra.metadata.MetadataClient`.
+- **커맨드**: `/ddd-review`(변경분 감사) · `/ddd-fix`(점진 수정) · `/verify`(훅+테스트). 훅 실행에 Node.js 필요.

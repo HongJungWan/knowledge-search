@@ -1,9 +1,9 @@
-package com.hris.knowledgesearch.infra.metadata;
+package com.hris.knowledgesearch.application.knowledge.port;
 
 import java.util.List;
 
 /**
- * metadata 서비스 {@code POST /api/resolve} 응답 매핑 DTO.
+ * metadata 서비스 {@code POST /api/resolve} 응답 매핑 DTO (포트 반환 타입).
  * <p>
  * metadata-ontology 의 {@code ResolveResponse} 형식을 그대로 받는다
  * ({@code {normalizedQuery, terms[], columnMappings[], timeRange, unmapped[]}}).

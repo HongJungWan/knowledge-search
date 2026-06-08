@@ -81,4 +81,27 @@ public class KnowledgeRecord extends BaseEntity {
     /** 콘텐츠 해시 (SHA-256). 중복 제거·변경 감지에 사용한다(PRD §4.3/§7). */
     @Column(name = "content_hash", nullable = false, length = 64, unique = true)
     private String contentHash;
+
+    /** 주어진 도메인에 속하는 레코드인지. */
+    public boolean belongsTo(String domain) {
+        return this.domain != null && this.domain.equals(domain);
+    }
+
+    /**
+     * 코드값 묶음에 {@code "key":"value"} 가 들어 있는지.
+     * <p>
+     * 코드값 일치 검색(PRD §6)의 판정을 엔티티에 캡슐화한다. 운영 Redshift 의 SUPER 경로에서도
+     * 의미는 동일하다(여기선 JSON 텍스트 기준).
+     */
+    public boolean hasCodeValue(String key, String value) {
+        if (codeValues == null || key == null || value == null) {
+            return false;
+        }
+        return codeValues.contains("\"" + key + "\":\"" + value + "\"");
+    }
+
+    /** 콘텐츠 해시가 같은(=동일 내용) 레코드인지. 적재 단계 중복 판정에 쓴다. */
+    public boolean hasSameContentAs(String otherContentHash) {
+        return contentHash != null && contentHash.equals(otherContentHash);
+    }
 }

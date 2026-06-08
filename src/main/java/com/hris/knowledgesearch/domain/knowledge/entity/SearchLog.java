@@ -57,4 +57,18 @@ public class SearchLog extends BaseEntity {
     /** 정성 평가 점수 (0~10, 미평가 시 null) */
     @Column(name = "judged_score")
     private Integer judgedScore;
+
+    /** 적중(검색 결과 1건 이상)했는지. */
+    public boolean isHit() {
+        return hitCount != null && hitCount > 0;
+    }
+
+    /**
+     * metadata 사전 보강 후보인지(PRD §9).
+     * <p>
+     * 적중이 없거나 평가 점수가 임계 미만이면, 매핑/동의어 보강 대상으로 본다.
+     */
+    public boolean needsDictionaryReinforcement(int minScore) {
+        return !isHit() || (judgedScore != null && judgedScore < minScore);
+    }
 }

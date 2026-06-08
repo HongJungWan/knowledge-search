@@ -9,8 +9,8 @@ import com.hris.knowledgesearch.domain.knowledge.repository.KnowledgeRecordRepos
 import com.hris.knowledgesearch.domain.knowledge.repository.SearchLogRepository;
 import com.hris.knowledgesearch.global.exception.BusinessException;
 import com.hris.knowledgesearch.global.exception.ErrorCode;
-import com.hris.knowledgesearch.infra.metadata.MetadataResolveResult;
-import com.hris.knowledgesearch.infra.metadata.MetadataClient;
+import com.hris.knowledgesearch.application.knowledge.port.MetadataResolvePort;
+import com.hris.knowledgesearch.application.knowledge.port.MetadataResolveResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,7 +35,7 @@ public class KnowledgeSearchService {
 
     private final KnowledgeRecordRepository knowledgeRecordRepository;
     private final SearchLogRepository searchLogRepository;
-    private final MetadataClient metadataClient;
+    private final MetadataResolvePort metadataPort;
 
     /**
      * 지식 검색 (search_knowledge).
@@ -55,7 +55,7 @@ public class KnowledgeSearchService {
         int effectiveLimit = clampLimit(limit);
 
         // 1) metadata 로 정규화·매핑 (비활성 시 원본 질의 폴백)
-        MetadataResolveResult resolved = metadataClient.resolve(query);
+        MetadataResolveResult resolved = metadataPort.resolve(query);
         String normalized = resolved.normalizedQuery();
 
         // metadata 가 코드값 매핑을 준 경우 filters 에 보강 (호출자 filters 우선)

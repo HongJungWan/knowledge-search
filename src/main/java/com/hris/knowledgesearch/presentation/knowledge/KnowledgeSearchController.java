@@ -2,10 +2,10 @@ package com.hris.knowledgesearch.presentation.knowledge;
 
 import com.hris.knowledgesearch.application.knowledge.KnowledgeSearchService;
 import com.hris.knowledgesearch.global.common.ApiResponse;
-import com.hris.knowledgesearch.presentation.knowledge.dto.KnowledgeDetailResponse;
-import com.hris.knowledgesearch.presentation.knowledge.dto.KnowledgeSummaryResponse;
-import com.hris.knowledgesearch.presentation.knowledge.dto.SchemaInfoResponse;
-import com.hris.knowledgesearch.presentation.knowledge.dto.SearchRequest;
+import com.hris.knowledgesearch.application.knowledge.dto.KnowledgeDetailResponse;
+import com.hris.knowledgesearch.application.knowledge.dto.KnowledgeSummaryResponse;
+import com.hris.knowledgesearch.application.knowledge.dto.SchemaInfoResponse;
+import com.hris.knowledgesearch.application.knowledge.dto.SearchRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

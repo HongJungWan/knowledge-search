@@ -2,10 +2,10 @@ package com.hris.knowledgesearch.presentation.knowledge;
 
 import com.hris.knowledgesearch.application.knowledge.KnowledgeSearchService;
 import com.hris.knowledgesearch.global.common.ApiResponse;
+import com.hris.knowledgesearch.application.knowledge.command.SearchKnowledgeCommand;
 import com.hris.knowledgesearch.application.knowledge.dto.KnowledgeDetailResponse;
 import com.hris.knowledgesearch.application.knowledge.dto.KnowledgeSummaryResponse;
 import com.hris.knowledgesearch.application.knowledge.dto.SchemaInfoResponse;
-import com.hris.knowledgesearch.application.knowledge.dto.SearchRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -37,10 +37,10 @@ public class KnowledgeSearchController {
     @Operation(summary = "지식 검색", description = "자연어 질의로 정형 지식을 검색한다 (요약 + 출처).")
     @PostMapping("/search")
     public ResponseEntity<ApiResponse<List<KnowledgeSummaryResponse>>> search(
-            @Valid @RequestBody SearchRequest request) {
+            @Valid @RequestBody SearchKnowledgeCommand command) {
         return ResponseEntity.ok(ApiResponse.success(
                 knowledgeSearchService.search(
-                        request.getQuery(), request.getDomain(), request.getFilters(), request.getLimit())));
+                        command.query(), command.domain(), command.filters(), command.limit())));
     }
 
     @Operation(summary = "지식 단건 조회", description = "ID 로 지식 레코드 원문 전체를 조회한다.")

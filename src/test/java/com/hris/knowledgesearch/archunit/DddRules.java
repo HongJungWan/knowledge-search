@@ -6,18 +6,24 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.hris.knowledgesearch.shared.ddd.AggregateInternal;
 import com.hris.knowledgesearch.shared.ddd.AggregateRoot;
+import com.hris.knowledgesearch.shared.ddd.Subdomain;
+import com.hris.knowledgesearch.shared.ddd.SubdomainType;
 import com.hris.knowledgesearch.shared.ddd.ValueObject;
+import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaField;
 import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.domain.JavaModifier;
+import com.tngtech.archunit.core.domain.JavaParameter;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 import com.tngtech.archunit.library.GeneralCodingRules;
 import jakarta.persistence.Entity;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * cross-file 구조 규칙을 *정밀* 강제(훅의 휴리스틱과 달리 전체 클래스 그래프 분석). 드롭인용.
@@ -76,6 +82,25 @@ public final class DddRules {
             .as("[DDD_AGGREGATE_ROOT_HAS_FACTORY] 애그리거트 루트는 정적 팩토리 메서드 보유")
             .allowEmptyShould(false);
 
+    /**
+     * 서브도메인 의존 방향: CORE 는 GENERIC 에 의존하지 않는다(핵심이 범용에 종속되지 않게).
+     * ks 에는 현재 GENERIC 타입이 없어 vacuous 통과(allowEmptyShould(true)).
+     */
+    public static final ArchRule CORE_NOT_DEPEND_ON_GENERIC = classes().that(isSubdomain(SubdomainType.CORE))
+            .should(notDependOnGenericSubdomain())
+            .as("[DDD_CORE_NOT_DEPEND_ON_GENERIC] CORE 서브도메인은 GENERIC 서브도메인에 의존하지 않는다")
+            .allowEmptyShould(true);
+
+    /**
+     * 요청 입력은 커맨드: @RestController 의 @RequestBody 파라미터 타입은 ..command.. 패키지이거나 *Command 명명.
+     * (요청 DTO 대신 의도를 표현하는 커맨드 객체를 입력으로 받는다.)
+     */
+    public static final ArchRule REQUEST_INPUT_IS_COMMAND = classes().that()
+            .areAnnotatedWith(RestController.class)
+            .should(haveRequestBodyParamsAsCommand())
+            .as("[DDD_REQUEST_INPUT_IS_COMMAND] @RequestBody 입력은 ..command.. 의 *Command 타입")
+            .allowEmptyShould(true);
+
     private static ArchCondition<JavaClass> onlyBeAccessedWithinSameAggregate() {
         return new ArchCondition<>("only be accessed within the same aggregate (package)") {
             @Override
@@ -123,6 +148,60 @@ public final class DddRules {
                     events.add(SimpleConditionEvent.violated(field,
                             field.getFullName() + " directly references aggregate root "
                                     + type.getSimpleName() + " (use its ID instead)"));
+                }
+            }
+        };
+    }
+
+    /** @Subdomain(value) 가 주어진 유형인 클래스 술어. */
+    private static DescribedPredicate<JavaClass> isSubdomain(SubdomainType type) {
+        return new DescribedPredicate<>("@Subdomain(" + type + ")") {
+            @Override
+            public boolean test(JavaClass clazz) {
+                return clazz.isAnnotatedWith(Subdomain.class)
+                        && clazz.getAnnotationOfType(Subdomain.class).value() == type;
+            }
+        };
+    }
+
+    private static boolean isGenericSubdomain(JavaClass clazz) {
+        return isSubdomain(SubdomainType.GENERIC).test(clazz);
+    }
+
+    private static ArchCondition<JavaClass> notDependOnGenericSubdomain() {
+        return new ArchCondition<>("not depend on @Subdomain(GENERIC) classes") {
+            @Override
+            public void check(JavaClass clazz, ConditionEvents events) {
+                for (Dependency dep : clazz.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dep.getTargetClass().getBaseComponentType();
+                    if (!target.equals(clazz) && isGenericSubdomain(target)) {
+                        events.add(SimpleConditionEvent.violated(dep,
+                                clazz.getName() + " (CORE) depends on GENERIC subdomain "
+                                        + target.getSimpleName()));
+                    }
+                }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> haveRequestBodyParamsAsCommand() {
+        return new ArchCondition<>("have @RequestBody parameters typed as ..command.. *Command") {
+            @Override
+            public void check(JavaClass controller, ConditionEvents events) {
+                for (JavaMethod method : controller.getMethods()) {
+                    for (JavaParameter param : method.getParameters()) {
+                        if (!param.isAnnotatedWith(RequestBody.class)) {
+                            continue;
+                        }
+                        JavaClass type = param.getRawType().getBaseComponentType();
+                        boolean ok = type.getPackageName().contains(".command")
+                                || type.getSimpleName().endsWith("Command");
+                        if (!ok) {
+                            events.add(SimpleConditionEvent.violated(method,
+                                    method.getFullName() + " @RequestBody parameter '" + type.getSimpleName()
+                                            + "' is not a ..command.. *Command type"));
+                        }
+                    }
                 }
             }
         };

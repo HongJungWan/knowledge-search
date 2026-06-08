@@ -2,6 +2,8 @@ package com.hris.knowledgesearch.domain.knowledge;
 
 import com.hris.knowledgesearch.global.common.BaseEntity;
 import com.hris.knowledgesearch.shared.ddd.AggregateRoot;
+import com.hris.knowledgesearch.shared.ddd.Subdomain;
+import com.hris.knowledgesearch.shared.ddd.SubdomainType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -26,6 +28,7 @@ import java.time.Instant;
  * 쓰기는 ETL/배치 경로로 모은다.
  */
 @AggregateRoot
+@Subdomain(SubdomainType.CORE)
 @Entity
 @Table(name = "knowledge_record",
         indexes = {

@@ -14,6 +14,9 @@ import java.util.Map;
 /**
  * metadata-ontology 서비스 클라이언트 (PRD §2/§6). 아웃바운드 어댑터.
  * <p>
+ * // ACL: metadata 바운디드 컨텍스트에 대한 anti-corruption 어댑터다. 외부 응답을 {@link MetadataResolveResult}
+ * 로 번역하고, 비활성/실패를 폴백으로 흡수해 외부 모델/장애가 우리 쪽으로 전파되지 않게 한다.
+ * <p>
  * 자연어 질의를 표준 용어·물리 컬럼·코드값·기간으로 해석받는다. 기능은 플래그 {@code metadata.enabled}
  * (기본 false) 뒤에 둔다. 비활성이거나 호출이 실패하면 원본 질의를 그대로 쓰는 no-op 폴백을 반환한다.
  * 결과는 Caffeine 캐시({@value CacheConfig#METADATA_RESOLVE_CACHE})에 담는다.

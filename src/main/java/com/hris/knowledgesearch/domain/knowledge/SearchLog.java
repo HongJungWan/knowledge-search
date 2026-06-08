@@ -2,6 +2,8 @@ package com.hris.knowledgesearch.domain.knowledge;
 
 import com.hris.knowledgesearch.global.common.BaseEntity;
 import com.hris.knowledgesearch.shared.ddd.AggregateRoot;
+import com.hris.knowledgesearch.shared.ddd.Subdomain;
+import com.hris.knowledgesearch.shared.ddd.SubdomainType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -24,6 +26,7 @@ import lombok.ToString;
  * 모아 metadata 사전 보강으로 넘기는 분석의 원천이다.
  */
 @AggregateRoot
+@Subdomain(SubdomainType.SUPPORTING)
 @Entity
 @Table(name = "search_log")
 @Getter

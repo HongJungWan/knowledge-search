@@ -50,9 +50,9 @@
 | 레이어 | 패키지 | 내용 |
 |---|---|---|
 | domain | `domain.knowledge` | `KnowledgeRecord`/`SearchLog`(`@AggregateRoot`+`@Entity`, 행위 메서드 보유) · 리포지토리 **포트**(`KnowledgeRecordRepository`/`SearchLogRepository`, 순수 인터페이스 — Spring 타입 없음) |
-| application | `application.knowledge` | `KnowledgeSearchService`(`@Service`, 흐름 제어) · `application.knowledge.port.{MetadataResolvePort, MetadataResolveResult}`(아웃바운드 포트) |
+| application | `application.knowledge` | `KnowledgeSearchService`(`@Service`, 흐름 제어) · `dto.*`(요청/응답 DTO — 애플리케이션 계약) · `port.{MetadataResolvePort, MetadataResolveResult}`(아웃바운드 포트) |
 | infrastructure | `infrastructure.*` | `persistence.knowledge.*RepositoryImpl`(포트 어댑터 = Spring Data `*JpaRepository` + QueryDSL) · `metadata.MetadataClient`(MetadataResolvePort 구현) · `etl.*`(배치/유틸) · `config.*`(QueryDsl/Cache/OpenApi/Mcp/JpaAuditing) |
-| presentation | `presentation.*` | `knowledge.KnowledgeSearchController` + `knowledge.dto.*` · `mcp.KnowledgeSearchTools`(@Tool 인바운드 어댑터) · `etl.EtlController` |
+| presentation | `presentation.*` | `knowledge.KnowledgeSearchController` · `mcp.KnowledgeSearchTools`(@Tool 인바운드 어댑터) · `etl.EtlController` (DTO 는 application.knowledge.dto) |
 | (횡단) | `global.*` · `shared.ddd.*` | BaseEntity/ApiResponse/Exception/Health(레이어 외 횡단) · DDD 마커 5종 |
 
 - **마커**: `shared.ddd.{AggregateRoot,AggregateInternal,ValueObject,DomainEvent,DomainService}`. AR 은 `KnowledgeRecord`/`SearchLog` 에만. VO/AggregateInternal 은 현재 미사용.

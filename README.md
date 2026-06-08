@@ -1,91 +1,100 @@
 # knowledge-search
 
-사내 정형 지식 검색(RAG) 백엔드 + **MCP 서버** (정산/Settlement 도메인).
-Claude Code 가 MCP 도구 호출로 사내 지식을 직접 검색하고, 그 결과를 근거로 답하게 한다.
-벡터 DB 없이 SQL(QueryDSL) 검색으로 운영한다(PRD §1.2).
+사내 정산 지식을 한곳에서 찾아 쓰게 해주는 검색 백엔드예요. Claude가 직접 사내 지식을 뒤져 답의 근거로 삼게 해주고, 일반 앱도 같은 검색을 가져다 쓸 수 있어요. 따로 벡터 DB를 두지 않고, 평범한 데이터베이스 검색만으로 동작해요.
 
-- **스택**: Java 21 · Spring Boot 3.5.5 · Spring AI MCP Server · JPA · QueryDSL 5.1.0 · Spring Batch · springdoc-openapi 2.7.0 · Caffeine
-- **포트**: `8095`
-- **루트 패키지**: `com.hris.knowledgesearch`
+이 문서는 이 서비스가 무엇을 하고 어떻게 짜여 있는지 한 바퀴 둘러봐요.
 
-> 자연어 질의의 정규화·용어→컬럼 매핑은 형제 서비스 **metadata-ontology**(`/api/resolve`, 포트 8096)에 위임한다.
-> 기본은 비활성(`metadata.enabled=false`)이라 metadata 없이도 원본 질의로 검색이 동작한다.
+<br>
+<br>
 
-## 로컬 실행
+## 한눈에 — 어떻게 동작하나
 
-기본/LOCAL 프로필은 **H2 in-memory** 로 부팅한다 (외부 의존성·AWS 없음). 부팅 시 `data.sql` 시드가 적재돼 즉시 검색이 된다.
+질문이 들어오면 관련 지식을 찾아 **요약과 출처**로 돌려줘요. 필요하면 검색 전에 질문 속 표현을 표준말로 다듬는데, 그 일은 형제 서비스(metadata-ontology)에 맡겨요. 다듬기 연동은 꺼져 있어도 원래 질문 그대로 검색이 돼요.
 
-```bash
-./gradlew bootRun        # 포트 8095
-./gradlew test           # 단위 테스트 (HashUtil, TextNormalizer)
-./gradlew compileJava    # 컴파일 검증
+들어오는 길은 둘이에요. Claude는 전용 도구로, 사람이나 다른 앱은 REST로 같은 검색을 불러요.
+
+```mermaid
+flowchart TD
+    Q1["Claude — 전용 도구로 검색"] --> R
+    Q2["사람·다른 앱 — REST로 검색"] --> R
+    R["질문 받기"] --> N["용어 다듬기 (선택 · 형제 서비스에 위임)"]
+    N --> S["데이터베이스에서 관련 지식 찾기"]
+    S --> O["요약 + 출처로 돌려주기"]
 ```
 
-- Health: http://localhost:8095/health , http://localhost:8095/management/health/liveness
-- Swagger UI: http://localhost:8095/swagger-ui.html
-- H2 Console: http://localhost:8095/h2-console (JDBC URL `jdbc:h2:mem:knowledgedb`, user `sa`, 빈 비밀번호)
+<br>
+<br>
 
-## REST API (MCP 와 동일 기능, 검증·디버깅용)
+## 무엇으로 이뤄져 있나
 
-| Method | Path | 설명 |
-|---|---|---|
-| POST | `/api/knowledge/search` | 지식 검색 (요약 + 출처) |
-| GET  | `/api/knowledge/{id}` | 단건 원문 조회 |
-| GET  | `/api/knowledge/schema?domain=SETTLEMENT` | 검색 가능 스키마 설명 |
-| POST | `/etl/run` | ETL 적재 잡 수동 트리거 (PRD §7.2) |
+**검색**
 
-```bash
-curl -X POST http://localhost:8095/api/knowledge/search \
-  -H 'Content-Type: application/json' \
-  -d '{"query":"미정산", "domain":"SETTLEMENT", "limit":5}'
+질문에 담긴 키워드와 코드값으로 관련 지식을 찾아, 얼마나 들어맞는지 점수를 매겨 정렬해요. 무거운 벡터 검색 대신 평범한 데이터베이스 질의로 처리해서 가볍게 돌아가요.
 
-curl -X POST http://localhost:8095/etl/run
-```
+**Claude가 쓰는 도구 세 가지**
 
-## MCP 도구 (PRD §5)
+Claude가 대화 중에 바로 꺼내 쓰도록 도구 세 가지를 열어 뒀어요.
 
-Spring AI MCP Server(webmvc)로 다음 도구를 노출한다. `KnowledgeSearchTools` 의 `@Tool` 메서드를
-`McpConfig` 가 `MethodToolCallbackProvider` 로 등록한다.
+- 지식 검색 — 질문으로 관련 지식 목록과 출처를 받아요.
+- 한 건 자세히 보기 — 고른 지식의 원문 전체를 봐요.
+- 무엇을 검색할 수 있는지 보기 — 어떤 자료를 어떤 기준으로 찾을 수 있는지 미리 살펴봐요.
 
-| 도구 | 입력 | 출력 |
-|---|---|---|
-| `search_knowledge` | `query`, `domain?`, `filters?`, `limit?` | 레코드 요약 목록 + 출처 |
-| `get_record` | `id` | 원문 전체 + 메타데이터 |
-| `list_schema` | `domain?` | 검색 가능한 테이블·컬럼·코드값 |
+**같은 기능의 REST 입구**
 
-> **Spring AI 버전 주의**: `spring-ai-bom:1.0.0` + `spring-ai-starter-mcp-server-webmvc` 를 쓴다.
-> `@Tool`/`@ToolParam`(`org.springframework.ai.tool.annotation`), `MethodToolCallbackProvider`
-> (`org.springframework.ai.tool.method`) 는 1.0.0 기준으로 확인했다. 버전 업그레이드 시 시그니처 재확인 필요
-> (`build.gradle`/`McpConfig`/`KnowledgeSearchTools` 의 `// TODO: verify Spring AI version`).
+도구와 똑같은 검색을 REST로도 부를 수 있어요. 동작을 확인하거나, 다른 앱에서 가져다 쓸 때 써요.
 
-## ETL / 데이터 품질 (PRD §7)
+**용어 다듬기 연동 (선택)**
 
-Spring Batch 잡 `settlementIngestionJob` (수동 트리거: `POST /etl/run`, 부팅 자동 실행 OFF).
+"미정산", "지난달" 같은 표현을 표준 용어와 실제 항목으로 바꾸는 일은 형제 서비스에 맡겨요. 기본은 꺼져 있고, 켜야 동작해요. 꺼져 있어도 원래 질문 그대로 검색되니 없어도 괜찮아요.
 
-1. **읽기**: `classpath:sample/settlement-source.json` (의도적 공백/대소문자/중복 + 제목 누락 1건 포함)
-2. **검증**: 필수 필드(title/body) 누락 레코드 skip + 로그
-3. **정규화**: `TextNormalizer` — trim, 연속 공백 축약, 전각/반각(NFKC)
-4. **중복 제거**: `HashUtil` 의 SHA-256 `content_hash` — 같은 내용 1건만 적재
-5. **쓰기**: `content_hash` 중복(기존/청크 내) skip 후 upsert
+**데이터 모으기**
 
-순수 유틸(`HashUtil`, `TextNormalizer`)은 단위 테스트로 검증한다.
+외부 정산 자료를 가져와 군더더기 공백을 정리하고, 같은 내용이 겹치면 하나만 남겨 쌓아요. 필요할 때 직접 한 번 돌리는 방식이에요.
 
-## AWS 미연결 (현재 — TODO)
+<br>
+<br>
 
-이 프로젝트는 아직 AWS 에 연결되지 않는다. **모든 부팅은 H2** 로 한다.
+## 레포에는 뭐가 들어있나
 
-- **Redshift datasource**: `application.yml` 하단 `# TODO(AWS):` 주석 블록(`prod` 프로필 예시). Redshift JDBC 드라이버(`com.amazon.redshift:redshift-jdbc42`)는 연결 확정 시 `build.gradle` 에 추가한다.
-- **Redshift Spectrum / Glue Data Catalog / S3**: `search.spectrum.enabled: false`(기본) 플래그 뒤. 켜도 가드(`// TODO(AWS)`)에 막혀 동작하지 않는다. 외부 테이블/파티션 등록 설정은 `application.yml` 주석 블록 참조.
-- **EXPLAIN 선점검**(PRD §6): Redshift 경로 활성화 시 SELECT 전 `EXPLAIN` 점검 — `KnowledgeRecordRepositoryCustomImpl` 의 `TODO(AWS)` 주석 참조. 현재 H2 경로에서는 생략.
-- **metadata 연동**: `metadata.enabled: false`(기본). 켜면 `http://localhost:8096/api/resolve` 호출, 실패 시 원본 질의 폴백.
-- 자격증명은 환경변수/EC2 환경 파일로 주입한다. **저장소 평문 커밋 금지.**
+코드는 역할에 따라 네 겹으로 나눠 뒀어요.
 
-## 데이터 모델 (PRD §4)
+- **핵심 규칙** — 지식 한 건과 검색 기록을 다루는, 바깥 사정에 얽히지 않는 부분이에요.
+- **흐름 조율** — 검색이 어떤 순서로 흘러가는지 엮어요.
+- **바깥 연결** — 데이터베이스 검색, 용어 서비스 호출, 데이터 모으기처럼 실제 바깥과 맞닿는 일을 맡아요.
+- **입구** — Claude용 도구와 REST, 두 가지 들어오는 길이에요.
 
-| 엔티티 | 핵심 필드 |
+폴더로 보면 이렇게 놓여 있어요.
+
+| 위치 | 무엇 |
 |---|---|
-| `KnowledgeRecord` | id, domain, title, body(@Lob), sourceUrl, codeValues(운영 Redshift SUPER / H2 JSON 텍스트), sourceUpdatedAt, contentHash(unique) |
-| `SearchLog` | queryRaw, queryNormalized, tool, latencyMs, hitCount, judgedScore(nullable) |
+| `src` | 위 네 겹으로 나뉜 서비스 코드예요. |
+| `docs` | 설계와 점검 장치를 정리한 문서예요. |
+| `.claude` | 코드가 설계 규칙을 지키게 잡아주는 가드레일(하네스)이에요. |
+| `.github` | 코드를 올릴 때 구조를 한 번 더 확인하는 검사예요. |
+| `scripts` | 점검 장치가 제대로 도는지 빠르게 확인하는 용도예요. |
 
-> 운영에서 `KnowledgeRecord` 는 Redshift 네이티브 테이블에 **읽기 위주**로 매핑하고, 쓰기는 ETL/배치로 모은다(PRD §3.1).
-> Redshift IDENTITY 는 값의 연속성을 보장하지 않으므로 운영 키는 ETL 에서 생성한 값을 쓴다.
+설계 규칙을 자동으로 잡아주는 장치는 [opinionated-harness-template](https://github.com/HongJungWan/opinionated-harness-template)을 그대로 얹은 거예요. 자세한 쓰임새는 [`docs/HARNESS.md`](docs/HARNESS.md)에 있어요.
+
+<br>
+<br>
+
+## 지금은 어디까지
+
+- 지금은 내 컴퓨터에서 가벼운 임시 데이터베이스로만 떠요. 큰 분석용 데이터베이스 같은 외부 환경은 아직 붙이지 않았고, 들어갈 자리만 잡아 뒀어요. 실제 접속 값은 나중에 채워요.
+- 용어 다듬기 연동은 기본이 꺼짐이에요. 안 켜도 검색은 원래 질문으로 잘 돼요.
+- 접속 정보는 환경변수로만 넣어요. 비밀번호 같은 값을 코드에 직접 적는 건 금지예요.
+
+<br>
+<br>
+
+## 시작하기와 문서
+
+JDK 21 이상이 있으면 바로 띄울 수 있어요.
+
+```bash
+./gradlew bootRun
+```
+
+서버는 `8095` 포트로 떠요. 살아있는지는 `/health`, 어떤 기능이 있는지는 `/swagger-ui.html`에서 둘러볼 수 있어요. 로컬 임시 데이터베이스는 `/h2-console`로 들여다봐요.
+
+설계와 점검 장치를 더 알고 싶으면 [`docs/HARNESS.md`](docs/HARNESS.md)를 보면 돼요.

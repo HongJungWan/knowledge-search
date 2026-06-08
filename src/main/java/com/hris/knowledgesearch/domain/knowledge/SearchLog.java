@@ -4,6 +4,8 @@ import com.hris.knowledgesearch.global.common.BaseEntity;
 import com.hris.knowledgesearch.shared.ddd.AggregateRoot;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -44,9 +46,10 @@ public class SearchLog extends BaseEntity {
     @Column(name = "query_normalized", length = 2000)
     private String queryNormalized;
 
-    /** 호출된 MCP 도구명 (search_knowledge / get_record / list_schema) */
+    /** 호출된 MCP 도구 (SEARCH_KNOWLEDGE / GET_RECORD / LIST_SCHEMA) */
+    @Enumerated(EnumType.STRING)
     @Column(name = "tool", length = 100)
-    private String tool;
+    private ToolName tool;
 
     /** 지연 시간 (ms) */
     @Column(name = "latency_ms")
@@ -59,6 +62,33 @@ public class SearchLog extends BaseEntity {
     /** 정성 평가 점수 (0~10, 미평가 시 null) */
     @Column(name = "judged_score")
     private Integer judgedScore;
+
+    /**
+     * 검색 호출 로그 생성 팩토리. 도메인 불변식을 생성 시점에 강제한다.
+     * <p>
+     * queryNormalized 는 null 허용(정규화 미적용 호출 경로). judgedScore 는 사후 평가이므로 생성 시 null.
+     *
+     * @throws IllegalArgumentException queryRaw 공백 / latencyMs<0 / hitCount<0
+     */
+    public static SearchLog record(String queryRaw, String queryNormalized, ToolName tool,
+                                   long latencyMs, int hitCount) {
+        if (queryRaw == null || queryRaw.isBlank()) {
+            throw new IllegalArgumentException("queryRaw 는 비어있을 수 없습니다");
+        }
+        if (latencyMs < 0) {
+            throw new IllegalArgumentException("latencyMs 는 0 이상이어야 합니다: " + latencyMs);
+        }
+        if (hitCount < 0) {
+            throw new IllegalArgumentException("hitCount 는 0 이상이어야 합니다: " + hitCount);
+        }
+        return SearchLog.builder()
+                .queryRaw(queryRaw)
+                .queryNormalized(queryNormalized)
+                .tool(tool)
+                .latencyMs(latencyMs)
+                .hitCount(hitCount)
+                .build();
+    }
 
     /** 적중(검색 결과 1건 이상)했는지. */
     public boolean isHit() {

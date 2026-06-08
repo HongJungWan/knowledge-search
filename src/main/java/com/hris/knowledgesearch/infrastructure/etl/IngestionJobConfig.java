@@ -107,15 +107,8 @@ public class IngestionJobConfig {
             // (3) SHA-256 content_hash
             String contentHash = HashUtil.contentHash(domain, title, body);
 
-            return KnowledgeRecord.builder()
-                    .domain(domain)
-                    .title(title)
-                    .body(body)
-                    .sourceUrl(sourceUrl)
-                    .codeValues(codeValuesJson)
-                    .sourceUpdatedAt(java.time.Instant.now())
-                    .contentHash(contentHash)
-                    .build();
+            return KnowledgeRecord.forIngestion(
+                    domain, title, body, sourceUrl, codeValuesJson, java.time.Instant.now(), contentHash);
         };
     }
 

@@ -84,6 +84,43 @@ public class KnowledgeRecord extends BaseEntity {
     @Column(name = "content_hash", nullable = false, length = 64, unique = true)
     private String contentHash;
 
+    /** 콘텐츠 해시 형식(소문자/대문자 무관 64자리 16진수) 검증용. */
+    private static final java.util.regex.Pattern CONTENT_HASH_PATTERN =
+            java.util.regex.Pattern.compile("^[0-9a-fA-F]{64}$");
+
+    /**
+     * 적재(ETL/배치) 경로용 팩토리. 도메인 불변식을 생성 시점에 강제한다.
+     * <p>
+     * 정규화/해시 계산은 호출자(ETL)가 끝낸 값을 받는다. 여기서는 무결성만 보장한다:
+     * domain/title/body 비어있지 않음, contentHash 가 64자리 16진 해시.
+     *
+     * @throws IllegalArgumentException 불변식 위반 시
+     */
+    public static KnowledgeRecord forIngestion(String domain, String title, String body, String sourceUrl,
+                                               String codeValues, Instant sourceUpdatedAt, String contentHash) {
+        if (domain == null || domain.isBlank()) {
+            throw new IllegalArgumentException("domain 은 비어있을 수 없습니다");
+        }
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("title 은 비어있을 수 없습니다");
+        }
+        if (body == null || body.isBlank()) {
+            throw new IllegalArgumentException("body 는 비어있을 수 없습니다");
+        }
+        if (contentHash == null || !CONTENT_HASH_PATTERN.matcher(contentHash).matches()) {
+            throw new IllegalArgumentException("contentHash 는 64자리 16진 SHA-256 이어야 합니다: " + contentHash);
+        }
+        return KnowledgeRecord.builder()
+                .domain(domain)
+                .title(title)
+                .body(body)
+                .sourceUrl(sourceUrl)
+                .codeValues(codeValues)
+                .sourceUpdatedAt(sourceUpdatedAt)
+                .contentHash(contentHash)
+                .build();
+    }
+
     /** 주어진 도메인에 속하는 레코드인지. */
     public boolean belongsTo(String domain) {
         return this.domain != null && this.domain.equals(domain);

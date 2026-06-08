@@ -6,6 +6,7 @@ import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
 import com.hris.knowledgesearch.domain.knowledge.SearchLog;
 import com.hris.knowledgesearch.domain.knowledge.SearchLogRepository;
+import com.hris.knowledgesearch.domain.knowledge.ToolName;
 import com.hris.knowledgesearch.global.exception.BusinessException;
 import com.hris.knowledgesearch.global.exception.ErrorCode;
 import com.hris.knowledgesearch.application.knowledge.dto.KnowledgeDetailResponse;
@@ -70,7 +71,7 @@ public class KnowledgeSearchService {
                 .toList();
 
         // 4) 로그 기록 (PRD §9)
-        writeLog(query, normalized, "search_knowledge", start, summaries.size());
+        writeLog(query, normalized, ToolName.SEARCH_KNOWLEDGE, start, summaries.size());
         return summaries;
     }
 
@@ -83,7 +84,7 @@ public class KnowledgeSearchService {
         KnowledgeRecord record = knowledgeRecordRepository.findById(id)
                 .filter(r -> !r.isDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RECORD_NOT_FOUND));
-        writeLog(String.valueOf(id), null, "get_record", start, 1);
+        writeLog(String.valueOf(id), null, ToolName.GET_RECORD, start, 1);
         return KnowledgeDetailResponse.from(record);
     }
 
@@ -130,15 +131,10 @@ public class KnowledgeSearchService {
         return merged;
     }
 
-    private void writeLog(String raw, String normalized, String tool, long start, int hitCount) {
+    private void writeLog(String raw, String normalized, ToolName tool, long start, int hitCount) {
         try {
-            searchLogRepository.save(SearchLog.builder()
-                    .queryRaw(raw)
-                    .queryNormalized(normalized)
-                    .tool(tool)
-                    .latencyMs(System.currentTimeMillis() - start)
-                    .hitCount(hitCount)
-                    .build());
+            searchLogRepository.save(SearchLog.record(
+                    raw, normalized, tool, System.currentTimeMillis() - start, hitCount));
         } catch (Exception e) {
             // 로깅 실패가 검색 자체를 막지 않게 한다.
             log.warn("SearchLog 기록 실패: {}", e.getMessage());

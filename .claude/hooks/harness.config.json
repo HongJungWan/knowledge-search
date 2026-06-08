@@ -8,7 +8,7 @@
     "aggregateRoot": "AggregateRoot", "aggregateInternal": "AggregateInternal",
     "valueObject": "ValueObject", "domainEvent": "DomainEvent", "domainService": "DomainService"
   },
-  "thresholds": { "maxAggregateFields": 12 },
+  "thresholds": { "maxAggregateFields": 10 },
   "_checksDoc": "신규 DDD 체크 severity: block(차단,exit2) | warn(권고,exit0) | off. 휴리스틱은 기본 warn(오탐 허용), 구조 규칙 정밀 강제는 ArchUnit(CI).",
   "checks": {
     "vodImmutability": "block",

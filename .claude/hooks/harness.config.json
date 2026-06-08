@@ -21,12 +21,11 @@
     "domainFactory": "block",
     "pastTenseEvent": "block"
   },
-  "_layersDoc": "이 프로젝트는 package-by-feature(domain.<feature>.{entity,service,repository,controller,dto})라 domain 을 엔티티로 한정하고 기술 서브패키지로 레이어를 매핑한다. 순서: presentation→application→infrastructure→domain.",
   "layers": {
-    "presentation": ["**/controller/**", "**/controllers/**", "**/web/**", "**/presentation/**", "**/dto/**", "**/mcp/**"],
-    "application": ["**/application/**", "**/usecase/**", "**/usecases/**", "**/service/**", "**/*Service.java"],
-    "infrastructure": ["**/infrastructure/**", "**/infra/**", "**/adapter/**", "**/adapters/**", "**/repository/**", "**/etl/**"],
-    "domain": ["**/entity/**", "**/vo/**", "**/model/**"]
+    "presentation": ["**/controller/**", "**/controllers/**", "**/web/**", "**/presentation/**"],
+    "domain": ["**/domain/**"],
+    "application": ["**/application/**", "**/usecase/**", "**/usecases/**"],
+    "infrastructure": ["**/infrastructure/**", "**/infra/**", "**/adapter/**", "**/adapters/**"]
   },
   "forbiddenImports": {
     "_strictMode": "순수 헥사고날로 전환하려면 아래 domain 배열에 jakarta.persistence, org.springframework, lombok 을 추가. 기본은 실용 레이어드(허용).",

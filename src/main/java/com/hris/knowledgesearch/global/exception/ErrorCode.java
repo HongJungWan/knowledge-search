@@ -20,10 +20,7 @@ public enum ErrorCode {
     RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "지식 레코드를 찾을 수 없습니다."),
 
     // ETL (400 / 500)
-    ETL_TRIGGER_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "ETL 적재 잡 실행에 실패했습니다."),
-
-    // Metadata 연동 (502)
-    METADATA_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "metadata 서비스 호출에 실패했습니다.");
+    ETL_TRIGGER_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "ETL 적재 잡 실행에 실패했습니다.");
 
     private final HttpStatus httpStatus;
     private final String message;

@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * 정산 외부 소스 ACL (anti-corruption layer, DDD §4.4).
+ * 정산 외부 소스 ACL (anti-corruption layer).
  * <p>
  * 외부 정산 소스의 원본 표현(공백/대소문자/전각·중복 포함 JSON)을 도메인이 받아들일 수 있는
  * {@link IngestKnowledgeCommand} 로 번역한다: 정규화 · 도메인 기본값 · SHA-256 해시 · 필수 필드 검증.

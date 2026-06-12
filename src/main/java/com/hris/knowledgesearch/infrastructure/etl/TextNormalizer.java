@@ -20,7 +20,7 @@ public final class TextNormalizer {
      *   <li>앞뒤 공백 제거(trim)</li>
      *   <li>연속 공백·탭·개행을 단일 공백으로 축약</li>
      * </ol>
-     * 대소문자는 본문 의미 보존을 위해 그대로 둔다(검색 시 ignoreCase 로 처리).
+     * 대소문자는 본문 의미 보존을 위해 그대로 둔다(검색은 title 만 ignoreCase, body 는 대소문자 구분 매칭).
      */
     public static String normalize(String input) {
         if (input == null) {

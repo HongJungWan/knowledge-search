@@ -45,8 +45,10 @@ public class KnowledgeRecord extends BaseEntity {
     /**
      * 지식 레코드 ID (PK).
      * <p>
-     * H2/로컬에서는 IDENTITY 자동 증분을 쓴다. 단 Redshift 의 IDENTITY 는 값의 연속성을 보장하지 않으므로(PRD §3.1),
-     * 운영 환경의 키는 ETL/배치에서 생성한 값을 사용한다(여기서 의존하지 않는다).
+     * H2/로컬에서는 JPA IDENTITY 자동 증분을 쓴다. 운영 Redshift 도 IDENTITY 지만 값의 연속성을
+     * 보장하지 않고 생성 키 회수(getGeneratedKeys)를 지원하지 않으므로(PRD §3.1), 애플리케이션은
+     * 키 연속성·생성 키 회수에 의존하지 않는다 — 중복 판정은 content_hash, 적재 INSERT 는 id 생략
+     * ({@code RedshiftKnowledgeRecordRepositoryImpl}).
      */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -66,7 +68,7 @@ public class KnowledgeRecord extends BaseEntity {
     @Column(name = "body", nullable = false)
     private String body;
 
-    /** 출처 링크/식별자 (응답에 항상 붙인다, PRD §5.3/§8) */
+    /** 출처 링크/식별자 (출처가 있으면 응답에 항상 붙인다, PRD §5.3/§8) */
     @Column(name = "source_url", length = 1000)
     private String sourceUrl;
 
@@ -83,8 +85,8 @@ public class KnowledgeRecord extends BaseEntity {
     @Column(name = "source_updated_at")
     private Instant sourceUpdatedAt;
 
-    /** 콘텐츠 해시 (SHA-256). 중복 제거·변경 감지에 사용한다(PRD §4.3/§7). */
-    @Column(name = "content_hash", nullable = false, length = 64, unique = true)
+    /** 콘텐츠 해시 (SHA-256). 중복 제거(insert-or-skip)에 사용한다(PRD §4.3/§7). */
+    @Column(name = "content_hash", nullable = false, length = 64)
     private String contentHash;
 
     /** 콘텐츠 해시 형식(소문자/대문자 무관 64자리 16진수) 검증용. */

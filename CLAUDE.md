@@ -32,19 +32,19 @@
 | ETL 수동 실행 | `POST /etl/run` |
 
 - 헬스 `/health` · Swagger `/swagger-ui.html` · H2 콘솔 `/h2-console`
-- MCP 도구 3종: `search_knowledge` / `get_record` / `list_schema`
+- MCP 도구 3종: `search_knowledge` / `get_record` / `list_schema` — SSE(`/sse`), Claude Code 연결은 레포 루트 `.mcp.json` (README "Claude Code 연결하기")
 - REST: `POST /api/knowledge/search`, `GET /api/knowledge/{id}`, `GET /api/knowledge/schema`
 
 ## 작업 시 주의 (이 프로젝트 고유)
-- **AWS 미연동**: Redshift·Spectrum·Glue·S3는 `application.yml`에 `# TODO(AWS)` 주석으로만 있고, 플래그(`search.spectrum.enabled`, `metadata.enabled`)는 기본 `false`. 실값은 사용자가 나중에 기재한다 — **임의로 켜지 마라.**
-- **Spring AI MCP 버전**: 현재 `spring-ai-bom:1.0.0`. 코드에 `// TODO: verify` 표시. 업그레이드 시 `@Tool`/`MethodToolCallbackProvider` API 변동 확인.
-- **`body`는 CLOB** → 키워드 매칭에 `lower()` 불가(현재 대소문자 구분 `contains`). 한글엔 무영향, Redshift 경로는 별도.
-- **DDL**: H2는 `create-drop`. Redshift DDL은 Flyway가 아니라 별도 마이그레이션 스크립트(PRD §3.1).
-- 검색 SQL은 자유 입력을 받지 않는다 — 허용 패턴 + 바인딩만(PRD §6).
+- **프로파일 분리**: local(기본)은 H2 + JPA/QueryDSL 어댑터, **redshift 프로파일**은 JdbcTemplate 어댑터(`Redshift*RepositoryImpl`) + Glue 파티션 등록(`infrastructure.glue`) + `application-redshift.yml`(환경변수 주입). Redshift DDL 은 `scripts/redshift/01~03`. redshift 프로파일은 환경변수(REDSHIFT_HOST 등) 없이 부팅되지 않는다 — AWS 없는 검증은 3겹: SQL 조립·멱등 로직은 모킹 테스트(`Redshift*Test`, `Glue*Test`), 빈 와이어링은 `RedshiftProfileWiringTest`(datasource 를 H2 로 가장), SQL 수용성은 AWS 공식 문서 대조(LIMIT 인라인·INSERT...SELECT JSON_PARSE 등 보수적 형태 채택). **주의: redshift 프로파일에서 DataSource/TransactionManager 빈을 추가하면 Boot 자동구성이 물러난다 — `BatchDataSourceConfig` 의 명시 정의(@Primary)를 깨지 마라.**
+- **플래그**: `search.spectrum.enabled`(Spectrum 통합 뷰 조회 — redshift 프로파일에서만 의미) · `metadata.enabled`(기본 `false`, 끄면 원본 질의 폴백).
+- **Spring AI MCP**: `spring-ai-bom:1.0.0` + webmvc 스타터(SSE) 확정. 업그레이드 시 `@Tool`/`MethodToolCallbackProvider` API 변동과 streamable HTTP 전환을 함께 확인.
+- **`body`는 H2 에서 CLOB** → 키워드 매칭에 `lower()` 불가(대소문자 구분 `contains`). 한글엔 무영향. Redshift 는 VARCHAR(65535) — 동일하게 body 는 대소문자 구분 LIKE 로 시맨틱을 맞춘다.
+- 검색 SQL은 자유 입력을 받지 않는다 — 허용 패턴 + 바인딩만, 코드값 키·값은 화이트리스트(PRD §6).
 
 ## DDD 하네스 (opinionated-harness-template — 실용 헥사고날 + DDD)
 
-> 코드 작성·수정 시 `.claude/hooks/harness.mjs`가 자동 검사하고(로컬 빠른 피드백), ArchUnit 이 CI 에서 구조 규칙을 정밀 강제한다. 상세는 `docs/HARNESS.md`. 카파시 4원칙과 같은 철학. 하네스는 **DEFAULT(verbatim) config** 를 쓴다 — 레이어는 패키지명으로 매핑된다.
+> 코드 작성·수정 시 `.claude/hooks/harness.mjs`가 자동 검사하고(로컬 빠른 피드백), ArchUnit 이 CI 에서 구조 규칙을 정밀 강제한다. 상세는 `docs/HARNESS.md`. 카파시 4원칙과 같은 철학. 하네스는 **DEFAULT 기반(단, checks 9종은 전부 block 으로 조임)** config 를 쓴다 — 레이어는 패키지명으로 매핑된다.
 
 ### 패키지 구조 (루트 `com.hris.knowledgesearch`)
 | 레이어 | 패키지 | 내용 |
@@ -84,5 +84,5 @@
 - **application↛infra 경계**: metadata 호출은 `application.knowledge.port.MetadataResolvePort`(포트=ACL)에 의존, 구현은 `infrastructure.metadata.MetadataClient`.
 - **ACL(anti-corruption)**: ① metadata 컨텍스트 → `MetadataResolvePort`/`MetadataClient`(포트+어댑터가 ACL 역할). ② 외부 정산 소스 → `application.knowledge.port.SettlementSourceAcl`(인터페이스) + `infrastructure.etl.SettlementSourceAclAdapter`(정규화·해시·기본값·검증). ETL 프로세서는 ACL 호출 후 `KnowledgeRecord.forIngestion(...)`. 컨텍스트 맵: `.claude/docs/context-map.md`.
 - **입력 커맨드**: REST `@RequestBody`는 `command.SearchKnowledgeCommand`(record, `@NotBlank`+compact 생성자 검증). 서비스 시그니처는 primitives 유지(최소 변경, 동작 동일). MCP 도구는 영향 없음.
-- **ArchUnit**(`src/test/java/.../archunit`) 10종: DOMAIN_PURITY · REPOSITORY_IMPL_IN_INFRA · AGGREGATE_ACCESS · ID_REFERENCE_BETWEEN_AGGREGATES · VALUE_OBJECT_IMMUTABLE · NO_FIELD_INJECTION · DOMAIN_ENTITY_MARKED · AGGREGATE_ROOT_HAS_FACTORY · CORE_NOT_DEPEND_ON_GENERIC(GENERIC 부재로 vacuous) · REQUEST_INPUT_IS_COMMAND(@RequestBody→`*Command`). `./gradlew test` 에서 함께 돈다. CI: `.github/workflows/ddd-archunit.yml`.
+- **ArchUnit**(`src/test/java/.../archunit`) 11종: DOMAIN_PURITY · REPOSITORY_IMPL_IN_INFRA · AGGREGATE_ACCESS · ID_REFERENCE_BETWEEN_AGGREGATES · VALUE_OBJECT_IMMUTABLE · NO_FIELD_INJECTION · DOMAIN_ENTITY_MARKED · AGGREGATE_ROOT_HAS_FACTORY · CORE_NOT_DEPEND_ON_GENERIC(GENERIC 부재로 vacuous) · REQUEST_INPUT_IS_COMMAND(@RequestBody→`*Command`) · APPLICATION_NOT_DEPEND_ON_INFRASTRUCTURE(application→infrastructure 의존 금지). `./gradlew test` 에서 함께 돈다. CI: `.github/workflows/ddd-archunit.yml`.
 - **커맨드**: `/ddd-review`(변경분 감사) · `/ddd-fix`(점진 수정) · `/verify`(훅+테스트). 훅 실행에 Node.js 필요.

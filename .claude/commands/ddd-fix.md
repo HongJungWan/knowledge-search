@@ -21,8 +21,8 @@ allowed-tools: Bash(./scripts/verify-harness.sh), Bash(./gradlew:*), Bash(cd arc
    - 빈약 모델 → 흩어진 로직을 엔티티/VO 안으로 캡슐화.
    임의 확장·보일러플레이트 생성 금지. 기존 코드 스타일을 따른다.
 
-4. **재검증 (카파시 ④)** — 각 수정 후 `./scripts/verify-harness.sh` 와 (가능하면)
-   `cd archunit && ./gradlew test` 로 위반이 사라졌는지 실행으로 확인한다. PostToolUse `guard` 훅이
+4. **재검증 (카파시 ④)** — 각 수정 후 `./scripts/verify-harness.sh` 와
+   `./gradlew test --tests '*archunit*'` 로 위반이 사라졌는지 실행으로 확인한다. PostToolUse `guard` 훅이
    추가 위반을 돌려주면 그 자리에서 반영한다.
 
 5. **보고** — 고친 항목과 남은(확인 필요) 항목을 분리해 정직하게 보고한다. 다 못 고쳤으면 그렇게 말한다.

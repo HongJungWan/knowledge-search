@@ -5,6 +5,8 @@ description: DB 스키마 변경/마이그레이션 작업 시 로드. Flyway �
 
 # DB 마이그레이션 가이드 (Flyway)
 
+> **현행화**: 이 레포는 Flyway 미사용. Redshift DDL 은 `scripts/redshift/01~03` 마이그레이션 스크립트(기존 파일 수정 금지·새 번호 추가), 로컬 H2 는 create-drop. 아래 Flyway 일반론은 **Flyway 도입 시** 적용한다.
+
 - 위치: `src/main/resources/db/migration/`
 - 파일명: `V{번호}__{설명}.sql` (예: `V30__add_order_status.sql`). 번호는 연속, 건너뛰지 않는다.
 - **기존 마이그레이션 파일은 절대 수정/삭제하지 않는다.** 이미 적용된 스크립트는 불변.

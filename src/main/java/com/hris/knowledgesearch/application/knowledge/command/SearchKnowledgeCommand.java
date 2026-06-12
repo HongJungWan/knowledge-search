@@ -28,5 +28,5 @@ public record SearchKnowledgeCommand(
         Integer limit
 ) {
     // 입력 검증은 @NotBlank + 컨트롤러의 @Valid 로 처리한다(기존 SearchRequest 와 동일한 400 응답 보존).
-    // compact 생성자에서 throw 하면 역직렬화 단계에서 HttpMessageNotReadable→500 이 되어 계약이 바뀐다.
+    // compact 생성자에서 throw 해도 GlobalExceptionHandler 가 HttpMessageNotReadableException 을 400 으로 매핑한다.
 }

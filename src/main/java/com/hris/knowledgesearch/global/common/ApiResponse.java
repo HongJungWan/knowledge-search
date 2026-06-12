@@ -11,7 +11,7 @@ import java.time.Instant;
 /**
  * API 공통 응답 DTO.
  * <p>
- * 모든 REST 응답을 {status, data, timestamp} 형식으로 일관되게 제공한다.
+ * 성공 응답을 {status, data, timestamp} 형식으로 일관되게 제공한다.
  */
 @Schema(description = "API 공통 응답")
 @Getter

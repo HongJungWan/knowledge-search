@@ -1,1 +1,6 @@
+// JDK 21 미보유 환경에서도 toolchain 이 자동으로 JDK 를 받아오게 한다 (클린 환경 재현성).
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
 rootProject.name = 'knowledge-search'

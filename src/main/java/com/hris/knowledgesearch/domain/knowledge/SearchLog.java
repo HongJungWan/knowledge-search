@@ -49,7 +49,7 @@ public class SearchLog extends BaseEntity {
     @Column(name = "query_normalized", length = 2000)
     private String queryNormalized;
 
-    /** 호출된 MCP 도구 (SEARCH_KNOWLEDGE / GET_RECORD / LIST_SCHEMA) */
+    /** 호출된 MCP 도구 (SEARCH_KNOWLEDGE / GET_RECORD — list_schema 는 현재 미기록) */
     @Enumerated(EnumType.STRING)
     @Column(name = "tool", length = 100)
     private ToolName tool;

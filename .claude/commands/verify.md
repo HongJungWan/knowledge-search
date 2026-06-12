@@ -1,6 +1,6 @@
 ---
 description: 하네스 훅 셀프테스트 + Gradle 테스트 + ArchUnit 게이트를 실행해 실행 기반 검증
-allowed-tools: Bash(./scripts/verify-harness.sh), Bash(./gradlew:*), Bash(cd archunit*)
+allowed-tools: Bash(./scripts/verify-harness.sh), Bash(./gradlew:*), Bash(./gradlew*)
 ---
 
 카파시 4원칙의 **실행 기반 검증**을 한 번에 수행한다. "맞아 보인다"가 아니라 실제 실행으로 증명한다.
@@ -14,8 +14,9 @@ allowed-tools: Bash(./scripts/verify-harness.sh), Bash(./gradlew:*), Bash(cd arc
 2. **단위 테스트** — 루트에 `gradlew` 가 있을 때만 실행(없으면 건너뛰고 그 사실을 보고):
    !`[ -x ./gradlew ] && ./gradlew test || echo "gradlew 없음 — 템플릿 단독 모드, 단위 테스트 건너뜀"`
 
-3. **ArchUnit 게이트** — 컴파일된 클래스 그래프로 구조 규칙(레이어/DIP/애그리거트/VO) 검증:
-   !`cd archunit && ./gradlew test`
+3. **ArchUnit 게이트** — 컴파일된 클래스 그래프로 구조 규칙(레이어/DIP/애그리거트/VO) 검증.
+   2단계 `./gradlew test` 에 이미 포함되므로, ArchUnit 만 빠르게 재실행하는 용도:
+   !`./gradlew test --tests '*archunit*'`
 
 ## 보고 규칙
 

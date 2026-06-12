@@ -10,7 +10,7 @@ import java.time.Instant;
 /**
  * 지식 레코드 요약 응답 (search_knowledge 결과 항목).
  * <p>
- * 요약을 먼저 주고 원문은 get_record 로 분리해 토큰을 줄인다(PRD §5.3). 출처를 항상 포함한다.
+ * 요약을 먼저 주고 원문은 get_record 로 분리해 토큰을 줄인다(PRD §5.3). 출처가 있으면 항상 포함한다.
  */
 @Schema(description = "지식 레코드 요약")
 @Getter

@@ -29,7 +29,7 @@ public interface KnowledgeRecordRepository {
     /** ID 로 단건 조회. */
     Optional<KnowledgeRecord> findById(Long id);
 
-    /** 콘텐츠 해시 존재 여부 (ETL upsert skip 판단). */
+    /** 콘텐츠 해시 존재 여부 (ETL insert-or-skip 판단). */
     boolean existsByContentHash(String contentHash);
 
     /** 지식 레코드 저장. */

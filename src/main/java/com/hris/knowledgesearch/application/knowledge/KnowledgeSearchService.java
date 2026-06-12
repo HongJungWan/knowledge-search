@@ -91,7 +91,7 @@ public class KnowledgeSearchService {
     /**
      * 검색 가능 스키마 설명 (list_schema).
      * <p>
-     * 현재는 정적 카탈로그를 제공한다. 운영에서는 metadata 카탈로그를 사용한다(PRD §5.1).
+     * 운영 전환 시 metadata 카탈로그로 대체 예정(현재는 정적 카탈로그)(PRD §5.1).
      */
     @Transactional(readOnly = true)
     public SchemaInfoResponse listSchema(String domain) {
@@ -114,7 +114,7 @@ public class KnowledgeSearchService {
                         .exampleCodeValues("{\"settlement_status\":\"PENDING|HOLD|DONE\"}").build())
                 .column(SchemaInfoResponse.ColumnInfo.builder()
                         .table("knowledge_record").column("source_url")
-                        .description("출처 링크/식별자 (응답에 항상 포함)").build())
+                        .description("출처 링크/식별자 (출처가 있으면 응답에 항상 포함)").build())
                 .build();
     }
 

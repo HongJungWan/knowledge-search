@@ -30,7 +30,7 @@ public class MetadataClient implements MetadataResolvePort {
 
     public MetadataClient(
             @Value("${metadata.enabled:false}") boolean enabled,
-            // TODO(AWS): 운영 배포 시 metadata 서비스 주소를 환경변수(METADATA_BASE_URL)로 주입한다.
+            // 운영(redshift 프로파일)은 application-redshift.yml 이 METADATA_BASE_URL 환경변수로 주입한다.
             @Value("${metadata.base-url:http://localhost:8096}") String baseUrl) {
         this.enabled = enabled;
         this.restClient = RestClient.builder().baseUrl(baseUrl).build();
@@ -40,9 +40,10 @@ public class MetadataClient implements MetadataResolvePort {
      * 질의를 metadata 서비스로 해석한다.
      * <p>
      * 플래그가 꺼져 있으면 호출하지 않고 원본 질의 폴백을 반환한다. 호출 실패도 폴백으로 흡수한다
-     * (검색은 metadata 없이도 동작해야 한다).
+     * (검색은 metadata 없이도 동작해야 한다). 호출 실패 시 폴백도 캐시 TTL 동안 유지된다
+     * (장애 시 재시도 폭주 방지 — metadata 복구 반영은 TTL 후).
      */
-    @Cacheable(cacheNames = CacheConfig.METADATA_RESOLVE_CACHE, key = "#query", unless = "#result == null")
+    @Cacheable(cacheNames = CacheConfig.METADATA_RESOLVE_CACHE, key = "#query")
     public MetadataResolveResult resolve(String query) {
         if (!enabled) {
             return MetadataResolveResult.raw(query);

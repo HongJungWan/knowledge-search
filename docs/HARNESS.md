@@ -10,11 +10,11 @@ AI 에이전트가 짠 Java/Spring 코드를 DDD 원칙에 맞게 잡아주는 �
 
 | 레버 | 위치 | 역할 |
 |---|---|---|
-| 시스템 프롬프트 | `CLAUDE.md` (60줄 이하) | 세션 시작 시 주입되는 최상위 제약 — 카파시 4원칙 · 스택 · 규칙 · 명령 |
+| 시스템 프롬프트 | `CLAUDE.md` (간결 유지) | 세션 시작 시 주입되는 최상위 제약 — 카파시 4원칙 · 스택 · 규칙 · 명령 |
 | 스킬 (필요할 때만 로드) | `.claude/skills/*/SKILL.md` | 도메인 지식을 모듈로 떼어 둠. 컨텍스트를 깨끗하게 유지하려고 필요한 순간에만 꺼내 봐요 |
 | 서브에이전트 | `.claude/agents/*.md` | 무거운 검토는 단기 에이전트에 맡기고 결론만 받아요. 메인 컨텍스트가 오염되지 않게 막는 방화벽 |
 | **훅 (자동 검증)** | `.claude/hooks/` | **에이전트가 쓴 코드를 읽고 DDD 규칙으로 자동 검사. 가장 큰 성능 레버.** |
-| 마커 어노테이션 | `ddd-markers/` | `@AggregateRoot` · `@AggregateInternal` · `@ValueObject` · `@DomainEvent` · `@DomainService` — 훅(이름 기준)과 ArchUnit(클래스 기준)이 같은 마커를 함께 봐요 |
+| 마커 어노테이션 | `src/main/java/**/shared/ddd/` | `@AggregateRoot` · `@AggregateInternal` · `@ValueObject` · `@DomainEvent` · `@DomainService` — 훅(이름 기준)과 ArchUnit(클래스 기준)이 같은 마커를 함께 봐요 |
 
 여기에 더해 **슬래시 커맨드**(`.claude/commands/`)와 **MCP 서버**(`.mcp.json`)를 조합해 흐름과 도구를 엮어요. 자세한 건 아래 해당 섹션에 있어요.
 
@@ -43,7 +43,7 @@ AI 에이전트가 짠 Java/Spring 코드를 DDD 원칙에 맞게 잡아주는 �
 
 **파일 수정 직전 — `protect`**
 
-Flyway 마이그레이션(`V#__*.sql`)을 고치거나 지우려 하면 실행 전에 막아요. 새 버전을 추가하라는 신호를 돌려줘요.
+Flyway 마이그레이션(`V#__*.sql`)을 고치거나 지우려 하면 실행 전에 막아요. 새 버전을 추가하라는 신호를 돌려줘요. (이 레포는 Flyway 미사용 — 보호 경로는 현재 해당 없음.)
 
 **Bash 실행 직전 — `bash`**
 
@@ -64,7 +64,7 @@ Flyway 마이그레이션(`V#__*.sql`)을 고치거나 지우려 하면 실행 �
     - 도메인 캡슐화 위반 (`@Setter` · `@Data` · public setter)
     - DIP 위반 (`*RepositoryImpl`이 도메인에, `*Repository`가 클래스로)
     - 값 객체 · 이벤트의 가변 노출
-- ⚠️ **경고(exit 0)** — 알려만 주고 막지는 않아요. 정규식 휴리스틱이라 오탐 여지가 있어서 기본은 비차단이에요.
+- ⚠️ **휴리스틱 검사** — 템플릿 기본은 경고(exit 0)지만, 이 레포는 `.claude/hooks/harness.config.json` 의 checks 9종을 전부 `block` 으로 운영한다(경고가 아니라 차단).
     - 애그리거트 경계 침범 · ID 참조 · 빈약한 모델 · 최소 애그리거트 · 도메인 서비스 무상태 · 팩토리 · 이벤트 이름 과거형
 
 **완료 선언 직전 — `checklist`**
@@ -79,7 +79,7 @@ Flyway 마이그레이션(`V#__*.sql`)을 고치거나 지우려 하면 실행 �
 
 `Edit` 도구는 수정 조각(`new_string`)만 훅에 넘겨요. 그 조각만 봐서는 파일 전체 import를 알 수 없어 도메인 순수성 같은 규칙을 정확히 검사할 수 없어요. 그래서 DDD 가드는 수정이 끝난 *완성 파일*을 직접 읽는 PostToolUse로 둬요. 반대로 마이그레이션 보호나 명령 차단은 입력만 봐도 판단되므로 PreToolUse면 충분해요.
 
-훅과 ArchUnit은 역할이 달라요. 훅은 로컬 에이전트 루프에서 빠르게 도는 1차 강제예요(휴리스틱이라 경고는 오탐 허용). 사람과 CI까지 포함한 권위 있는 최종 게이트는 ArchUnit이 받쳐줘요. 둘의 분담은 [`ARCHUNIT.md`](ARCHUNIT.md)에 정리해 뒀어요.
+훅과 ArchUnit은 역할이 달라요. 훅은 로컬 에이전트 루프에서 빠르게 도는 1차 강제예요(휴리스틱 오탐 여지 있음). 사람과 CI까지 포함한 권위 있는 최종 게이트는 ArchUnit이 받쳐줘요 — 훅이 빠른 1차, ArchUnit이 정밀 최종이라는 분담이에요.
 
 <br>
 
@@ -107,18 +107,18 @@ cp    opinionated-harness-template/.mcp.json  <your-project>/.mcp.json   # MCP �
 
 ## 22 원칙 어디까지 잡아주나
 
-훅(로컬, 빠름, 휴리스틱 허용)과 ArchUnit(CI, 정밀, 오탐 없음)이 2중 방어를 구성해요. 겹치는 구조 규칙은 훅에선 경고로 두고 ArchUnit에서 차단해서, 오탐 마찰 없이 커버리지를 넓혀요.
+훅(로컬, 빠름, 휴리스틱 허용)과 ArchUnit(CI, 정밀, 오탐 없음)이 2중 방어를 구성해요. 이 레포는 `.claude/hooks/harness.config.json` 의 checks 9종을 전부 `block` 으로 운영해서(경고가 아니라 차단), 휴리스틱 규칙도 그 자리에서 막고 ArchUnit 이 정밀하게 한 번 더 차단해요.
 
 | 강제 수준 | 원칙 # |
 |---|---|
 | 🔒 훅이 차단 | 도메인 순수성(#3): import 차단 · Spring 스테레오타입/`@Transactional` · EventPublisher · 시간/난수 API · DIP(#4): 응용→인프라 import · 캡슐화·setter(#11·#18) · 값 객체·이벤트 불변(#16·#20) · 필드 주입 |
-| ⚠️ 훅이 경고 | 애그리거트 경계(#9) · ID 참조(#13) · 빈약한 모델(#11) · 최소 애그리거트(#10) · 도메인 서비스(#22) · 팩토리(#15) · BC 격리(#1) · 이벤트 이름(#20) |
+| ⚠️ 훅 휴리스틱(이 레포는 전부 block) | 애그리거트 경계(#9) · ID 참조(#13) · 빈약한 모델(#11) · 최소 애그리거트(#10) · 도메인 서비스(#22) · 팩토리(#15) · BC 격리(#1) · 이벤트 이름(#20) |
 | ✅ ArchUnit 정밀 | 레이어 의존·도메인 순수성(#3) · DIP(#4) · 애그리거트 접근(#9·#12) · ID 참조(#13) · 값 객체 불변(#16) |
 | 📝 자동 강제 불가 → 스킬·리뷰 | 서브도메인 분류(#2) · 응용 로직 침투(#6·#7) · Command(#8) · 단일 TX·단일 AR(#14) · 보편 언어 명명(#17) · Tell-Don't-Ask(#21) |
 
 - **실용 레이어드**가 기본이에요. 도메인 엔티티에 JPA(`@Entity`)·`@Getter`·Lombok은 허용하고, 가변을 여는 `@Setter`·`@Data`만 막아요. 순수 헥사고날로 더 조이려면 `forbiddenImports.domain`에 `jakarta.persistence` · `org.springframework` · `lombok`을 추가하면 돼요.
 - **자동 강제 불가 6개**는 의미·런타임 분석이 필요해서 흉내내지 않아요. `ddd-guidelines`(예방) + `ddd-reviewer`(감사) + 완료 직전 체크리스트로만 다뤄요. 자동화한 척 거짓 자신감을 주지 않으려는 의도예요.
-- **경고 규칙은 정규식 휴리스틱**이라 오탐 여지가 있어요. 그래서 기본은 비차단이에요. 프로젝트가 단단해지면 `harness.config.json`의 `checks`에서 `block`/`warn`/`off`로 조정할 수 있어요.
+- **휴리스틱 규칙은 정규식 기반**이라 오탐 여지가 있어요. 템플릿 기본은 비차단(warn)이지만, 이 레포는 `harness.config.json` 의 `checks` 9종을 전부 `block` 으로 운영해요(경고가 아니라 차단).
 
 <br>
 
@@ -138,11 +138,10 @@ cp    opinionated-harness-template/.mcp.json  <your-project>/.mcp.json   # MCP �
 
 ## MCP 서버 (`.mcp.json`, opt-in)
 
-에이전트에게 외부 도구·데이터 접근을 주는 하네스 레버예요. 기본으로 `postgres`(읽기 전용 스키마 조회)를 넣어, `db-migration`·`jpa-persistence` 작업 때 실제 스키마를 보고 판단하게 했어요.
+에이전트에게 외부 도구·데이터 접근을 주는 하네스 레버예요. 이 레포의 `.mcp.json` 은 knowledge-search **자기 자신을 MCP 서버로 노출**해요 — `knowledge-search` 서버를 SSE(`http://localhost:8095/sse`)로 등록해서, 로컬에서 `./gradlew bootRun` 으로 띄운 앱의 MCP 도구 3종(`search_knowledge`/`get_record`/`list_schema`)을 Claude Code 가 바로 호출할 수 있어요.
 
-- 접속 문자열은 `${POSTGRES_URL}` 환경변수로 주입해요. **DB 자격증명 평문 커밋은 금지예요.**
 - 프로젝트 `.mcp.json`의 서버는 처음 쓸 때 승인을 물어봐요(본질적으로 opt-in). 자동으로 켜려면 `.claude/settings.local.json`의 `enabledMcpjsonServers`에 적어요(로컬·비커밋).
-- 안 쓰면 `.mcp.json`을 복사 안 하면 돼요. 훅은 Node만으로 도니까 MCP 없이도 완전해요.
+- 앱이 떠 있지 않으면 연결이 실패할 뿐이에요. 훅은 Node만으로 도니까 MCP 없이도 완전해요.
 
 <br>
 

@@ -9,6 +9,7 @@ import com.tngtech.archunit.lang.ArchRule;
 @AnalyzeClasses(packages = "com.hris.knowledgesearch", importOptions = ImportOption.DoNotIncludeTests.class)
 class DddArchitectureTest {
     @ArchTest static final ArchRule domainPurity = DddRules.DOMAIN_PURITY;
+    @ArchTest static final ArchRule applicationNotDependOnInfra = DddRules.APPLICATION_NOT_DEPEND_ON_INFRASTRUCTURE;
     @ArchTest static final ArchRule repositoryImpl = DddRules.REPOSITORY_IMPL_IN_INFRA;
     @ArchTest static final ArchRule aggregateAccess = DddRules.AGGREGATE_ACCESS;
     @ArchTest static final ArchRule idReference = DddRules.ID_REFERENCE_BETWEEN_AGGREGATES;

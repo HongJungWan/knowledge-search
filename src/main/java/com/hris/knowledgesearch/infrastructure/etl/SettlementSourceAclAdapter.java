@@ -55,6 +55,7 @@ public class SettlementSourceAclAdapter implements SettlementSourceAcl {
 
         return Optional.of(new IngestKnowledgeCommand(
                 normalizedDomain, normalizedTitle, normalizedBody, normalizedSourceUrl,
+                // 외부 소스가 수정시각을 주지 않아 적재 시각으로 대체(최신순 가중의 근사값)
                 codeValuesJson, Instant.now(), contentHash));
     }
 }

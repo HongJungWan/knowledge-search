@@ -12,5 +12,6 @@ import com.hris.knowledgesearch.shared.ddd.ValueObject;
 public enum ToolName {
     SEARCH_KNOWLEDGE,
     GET_RECORD,
+    /** 현재 기록 경로 없음(향후 listSchema 로깅용) */
     LIST_SCHEMA
 }

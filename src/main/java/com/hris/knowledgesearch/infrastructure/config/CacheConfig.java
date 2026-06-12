@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Caffeine 기반 캐시 설정.
  * <p>
- * metadata 서비스의 {@code /api/resolve} 결과를 캐싱한다 (PRD §6, 캐싱은 소비자 측 책임).
+ * metadata 서비스의 {@code /api/resolve} 결과를 캐싱한다 (metadata-ontology PRD §2 — 캐싱은 소비자(P1) 측 책임).
  * 같은 질의가 반복될 때 metadata 왕복을 줄여 도구 호출당 평균 응답 1초 목표(PRD §1.4)에 기여한다.
  */
 @Configuration

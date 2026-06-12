@@ -26,8 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * cross-file 구조 규칙을 *정밀* 강제(훅의 휴리스틱과 달리 전체 클래스 그래프 분석). 드롭인용.
- * 실제 프로젝트 적용 시 각 규칙을 {@code FreezingArchRule.freeze(...)} 로 감싸 baseline 래칫 권장(ARCHUNIT.md).
+ * cross-file 구조 규칙을 *정밀* 강제(훅의 휴리스틱과 달리 전체 클래스 그래프 분석).
  */
 public final class DddRules {
     private DddRules() {}
@@ -37,6 +36,16 @@ public final class DddRules {
             .should().dependOnClassesThat().resideInAnyPackage(
                     "..application..", "..infrastructure..", "..infra..", "..adapter..", "..presentation..")
             .as("[DDD_DOMAIN_PURITY] 도메인은 바깥 레이어에 의존하지 않는다").allowEmptyShould(false);
+
+    /**
+     * 레이어 경계: application 은 infrastructure 에 의존하지 않는다(포트 사용 — DIP).
+     * 훅(휴리스틱)만 막던 경계를 CI 권위 게이트로도 강제한다.
+     */
+    public static final ArchRule APPLICATION_NOT_DEPEND_ON_INFRASTRUCTURE = noClasses().that()
+            .resideInAPackage("..application..")
+            .should().dependOnClassesThat().resideInAnyPackage("..infrastructure..", "..infra..")
+            .as("[DDD_APP_NOT_DEPEND_ON_INFRA] application 은 infrastructure 에 의존하지 않는다(포트 사용)")
+            .allowEmptyShould(false);
 
     /** #4 DIP: 리포지토리 구현(*RepositoryImpl)은 infrastructure 에. */
     public static final ArchRule REPOSITORY_IMPL_IN_INFRA = classes().that()
@@ -99,7 +108,8 @@ public final class DddRules {
             .areAnnotatedWith(RestController.class)
             .should(haveRequestBodyParamsAsCommand())
             .as("[DDD_REQUEST_INPUT_IS_COMMAND] @RequestBody 입력은 ..command.. 의 *Command 타입")
-            .allowEmptyShould(true);
+            // @RestController 가 실재하므로 vacuous 통과를 허용하지 않는다(어노테이션 누락 시 침묵 방지).
+            .allowEmptyShould(false);
 
     private static ArchCondition<JavaClass> onlyBeAccessedWithinSameAggregate() {
         return new ArchCondition<>("only be accessed within the same aggregate (package)") {

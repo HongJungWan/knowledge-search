@@ -26,8 +26,8 @@ import java.util.Map;
  *   <li>어떤 필드가 있는지 모르면 {@code list_schema} 를 먼저 부른다.</li>
  * </ol>
  *
- * TODO: verify Spring AI version (PRD §12) — @Tool/@ToolParam 및 MethodToolCallbackProvider 는
- *       spring-ai 1.0.0 (org.springframework.ai.tool.*) 기준이다. 버전 업그레이드 시 시그니처 확인.
+ * {@code @Tool}/{@code @ToolParam} 은 spring-ai 1.0.0 (org.springframework.ai.tool.*) 확정 —
+ * 버전 업그레이드 시 시그니처 변동을 확인한다.
  */
 @Component
 @RequiredArgsConstructor

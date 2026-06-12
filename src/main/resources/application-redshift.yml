@@ -1,0 +1,55 @@
+# ===================================================================
+# knowledge-search — redshift 프로파일 (운영 검색 계층)
+# 실행: --spring.profiles.active=redshift + 아래 환경변수 주입
+# DDL 은 scripts/redshift/01~03 마이그레이션 스크립트가 관리한다 (Flyway 미사용, PRD §3.1).
+# 자격증명은 환경변수로만 주입 — 저장소 평문 커밋 금지.
+# ===================================================================
+
+spring:
+  datasource:
+    driver-class-name: com.amazon.redshift.jdbc.Driver
+    url: jdbc:redshift://${REDSHIFT_HOST}:${REDSHIFT_PORT:5439}/${REDSHIFT_DB}
+    username: ${REDSHIFT_USER}
+    password: ${REDSHIFT_PASS}
+    hikari:
+      maximum-pool-size: 10
+
+  jpa:
+    # Redshift 는 PostgreSQL 호환 프로토콜이나 공식 Hibernate 방언이 없다.
+    # 검색·적재 경로는 JPA 를 타지 않고(Redshift* JdbcTemplate 어댑터) Hibernate 는 DDL 에 관여하지 않는다.
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+
+  sql:
+    init:
+      mode: never            # data.sql 시드는 local(H2) 전용
+
+  h2:
+    console:
+      enabled: false
+
+  batch:
+    jdbc:
+      initialize-schema: never   # 배치 메타테이블은 BatchDataSourceConfig 의 임베디드 H2 가 관리
+
+# Spectrum 통합 뷰(knowledge_search_v) 조회 여부 — scripts/redshift/02~03 적용 후 켠다.
+search:
+  spectrum:
+    enabled: ${SPECTRUM_ENABLED:false}
+
+# metadata-ontology 연동 (PRD §2/§6)
+metadata:
+  enabled: ${METADATA_ENABLED:false}
+  base-url: ${METADATA_BASE_URL:http://localhost:8096}
+
+# Glue Data Catalog 파티션 등록 (ETL 종료 시, PRD §4.2/§7 — GluePartitionRegistrar)
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  glue:
+    enabled: true
+    database: ${GLUE_DATABASE}                # Glue Data Catalog 데이터베이스명
+    table: ${GLUE_TABLE:knowledge_archive}    # 외부 테이블명 (scripts/redshift/02)
+  s3:
+    bucket: ${S3_BUCKET}                      # Parquet 데이터 레이크 버킷
+    prefix: knowledge/                        # 파티션 경로: s3://<bucket>/knowledge/dt=YYYY-MM-DD/

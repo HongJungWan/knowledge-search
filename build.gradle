@@ -44,8 +44,12 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
 
     // DataBase 의존성
-    implementation 'com.h2database:h2'           // 로컬/기본 프로필 (in-memory) — 무 AWS 부팅
-    runtimeOnly 'org.postgresql:postgresql'      // Redshift 는 PostgreSQL 호환 프로토콜. TODO(AWS): Redshift JDBC 드라이버(com.amazon.redshift:redshift-jdbc42)는 연결 확정 시 추가한다.
+    implementation 'com.h2database:h2'           // local 프로필(in-memory) + redshift 프로필의 배치 메타테이블(BatchDataSourceConfig)
+    runtimeOnly 'com.amazon.redshift:redshift-jdbc42:2.1.0.33'   // redshift 프로파일 datasource (application-redshift.yml)
+
+    // AWS SDK v2 — Glue Data Catalog 파티션 등록 (ETL 종료 시, PRD §4.2/§7)
+    implementation platform('software.amazon.awssdk:bom:2.31.21')
+    implementation 'software.amazon.awssdk:glue'
 
     // 캐시 의존성 (metadata /resolve 결과 캐싱, PRD §6)
     implementation 'org.springframework.boot:spring-boot-starter-cache'   // CaffeineCacheManager 제공
@@ -54,8 +58,8 @@ dependencies {
     // Swagger OpenAPI 의존성
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
 
-    // Spring AI MCP Server (PRD §5/§12)
-    // TODO: verify Spring AI artifact/version (PRD §12) — 최신 릴리스로 확정 필요.
+    // Spring AI MCP Server (PRD §5/§12) — 1.0.0 확정. webmvc 스타터 = SSE 전송(/sse + /mcp/message).
+    // Claude Code 연결은 레포 루트 .mcp.json. 1.1.x 업그레이드 시 streamable HTTP(/mcp) 전환 검토.
     implementation platform('org.springframework.ai:spring-ai-bom:1.0.0')
     implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
 

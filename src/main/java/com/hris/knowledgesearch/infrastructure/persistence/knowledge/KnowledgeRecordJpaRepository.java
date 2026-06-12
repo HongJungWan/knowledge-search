@@ -11,6 +11,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface KnowledgeRecordJpaRepository extends JpaRepository<KnowledgeRecord, Long> {
 
-    /** 콘텐츠 해시 존재 여부 (ETL upsert skip 판단). */
+    /** 콘텐츠 해시 존재 여부 (ETL insert-or-skip 판단). */
     boolean existsByContentHash(String contentHash);
 }

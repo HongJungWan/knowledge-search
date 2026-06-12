@@ -34,6 +34,19 @@ class KnowledgeSearchIntegrationTest {
     }
 
     @Test
+    @DisplayName("LIKE 와일드카드: 키워드의 % 는 리터럴로 이스케이프된다 (Redshift 경로와 동일 시맨틱 — tripwire)")
+    void search_escapesLikeWildcardsToLiteral() {
+        // QueryDSL contains/containsIgnoreCase 는 상수의 %/_ 를 이스케이프한다(실측 —
+        // '%' 검색은 본문에 리터럴 % 가 있는 '가맹점 수수료율(2.8%)' 1건만 매칭).
+        // RedshiftKnowledgeRecordRepositoryImpl 도 ESCAPE '!' 로 동일 시맨틱을 구현한다 —
+        // 이 테스트가 깨지면(QueryDSL 동작 변경) Redshift 경로의 이스케이프도 함께 맞춰야 한다.
+        List<KnowledgeSummaryResponse> results = knowledgeSearchService.search("%", null, null, 10);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getTitle()).contains("수수료율");
+    }
+
+    @Test
     @DisplayName("getRecord 는 검색된 레코드의 상세를 반환한다")
     void getRecord_returnsDetailForSearchedRecord() {
         List<KnowledgeSummaryResponse> results = knowledgeSearchService.search("미정산", null, null, 10);

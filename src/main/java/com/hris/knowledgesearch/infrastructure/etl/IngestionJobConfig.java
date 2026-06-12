@@ -5,10 +5,12 @@ import com.hris.knowledgesearch.application.knowledge.command.IngestKnowledgeCom
 import com.hris.knowledgesearch.application.knowledge.port.SettlementSourceAcl;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.infrastructure.glue.GluePartitionRegistrationListener;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
@@ -16,6 +18,7 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.json.JacksonJsonObjectReader;
 import org.springframework.batch.item.json.JsonItemReader;
 import org.springframework.batch.item.json.builder.JsonItemReaderBuilder;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
@@ -24,16 +27,19 @@ import org.springframework.transaction.PlatformTransactionManager;
 /**
  * 정산 지식 적재 잡 (Spring Batch, PRD §7).
  * <p>
- * 파이프라인: 읽기(JSON) → 정제·검증(processor) → 중복 제거(content_hash) → 쓰기(upsert).
+ * 파이프라인: 읽기(JSON) → 정제·검증(processor) → 중복 제거(content_hash) → 쓰기(insert-or-skip).
  * <ul>
  *   <li>읽기: {@code classpath:sample/settlement-source.json} (의도적 공백/대소문자/중복 포함)</li>
  *   <li>처리: (1) 필수 필드 검증 — title/body 누락 시 null 반환으로 skip + 로그,
  *            (2) 문자열 정규화(trim/공백 축약/전각·반각), (3) SHA-256 content_hash 생성</li>
- *   <li>쓰기: content_hash 중복이면 skip, 아니면 INSERT (upsert)</li>
+ *   <li>쓰기: content_hash 중복이면 skip, 아니면 INSERT (insert-or-skip)</li>
  * </ul>
  * <p>
- * TODO(AWS): 운영에서는 쓰기 대상이 S3 Parquet / Redshift 이고, 적재 직후 Glue 파티션을
- *            {@code ALTER TABLE ... ADD PARTITION} 또는 Crawler 로 등록한다(PRD §4.2/§7). 현재는 H2 에 적재한다.
+ * 쓰기 대상은 프로파일이 정한다 — local 은 H2(JPA 어댑터), redshift 는 Redshift 네이티브 테이블
+ * (JdbcTemplate 어댑터). redshift 프로파일에서는 잡이 COMPLETED 로 끝나면
+ * {@link GluePartitionRegistrationListener} 가 Glue Data Catalog 에 당일 파티션을 등록해(PRD §4.2/§7)
+ * 레이크 파이프라인이 쓴 당일 아카이브 파티션이 Spectrum 조회에 노출되게 한다(이 ETL 산출물은
+ * 네이티브 테이블 — 파티션 데이터 생산 주체와 구분). local 은 리스너 빈이 없어 동작이 그대로다.
  */
 @Slf4j
 @Configuration
@@ -44,10 +50,13 @@ public class IngestionJobConfig {
     private static final int CHUNK_SIZE = 100;
 
     @Bean
-    public Job settlementIngestionJob(JobRepository jobRepository, Step settlementIngestionStep) {
-        return new JobBuilder(JOB_NAME, jobRepository)
-                .start(settlementIngestionStep)
-                .build();
+    public Job settlementIngestionJob(JobRepository jobRepository, Step settlementIngestionStep,
+                                      ObjectProvider<GluePartitionRegistrationListener> gluePartitionListener) {
+        SimpleJobBuilder builder = new JobBuilder(JOB_NAME, jobRepository)
+                .start(settlementIngestionStep);
+        // redshift 프로파일에서만 빈이 존재 — local 은 그대로 빈 없이 진행한다.
+        gluePartitionListener.ifAvailable(builder::listener);
+        return builder.build();
     }
 
     @Bean
@@ -97,7 +106,7 @@ public class IngestionJobConfig {
     }
 
     /**
-     * upsert 라이터: content_hash 중복(이미 존재 또는 같은 청크 내 중복)이면 skip.
+     * insert-or-skip 라이터: content_hash 중복(이미 존재 또는 같은 청크 내 중복)이면 skip.
      */
     @Bean
     public ItemWriter<KnowledgeRecord> settlementWriter(KnowledgeRecordRepository repository) {

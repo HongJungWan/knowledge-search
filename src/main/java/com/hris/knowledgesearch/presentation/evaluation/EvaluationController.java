@@ -40,11 +40,16 @@ public class EvaluationController {
     }
 
     @Operation(summary = "KS→MO 구조 ablation",
-            description = "metadata ON/OFF × vector ON/OFF 4-arm 으로 온톨로지 참조 구조의 실효성을 측정한다.")
+            description = "metadata ON/OFF × vector ON/OFF 4-arm 으로 온톨로지 참조 구조의 실효성을 측정한다. "
+                    + "gold=large 면 정밀도 압력 대량 코퍼스 정답셋 사용.")
     @GetMapping("/integrated")
     public ResponseEntity<ApiResponse<IntegratedEvaluationReportResponse>> integrated(
             @RequestParam(defaultValue = "3") int k,
-            @RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok(ApiResponse.success(integratedEvaluationService.evaluate(k, limit)));
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(defaultValue = "default") String gold) {
+        String resource = "large".equalsIgnoreCase(gold)
+                ? "evaluation/gold_search_large.csv"
+                : "evaluation/gold_search.csv";
+        return ResponseEntity.ok(ApiResponse.success(integratedEvaluationService.evaluate(k, limit, resource)));
     }
 }

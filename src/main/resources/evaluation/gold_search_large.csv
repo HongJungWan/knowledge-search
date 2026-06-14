@@ -1,0 +1,13 @@
+queryId,query,kind,expectedTitleContains,codeValues,expectedCode,relevantCount
+L01,미정산 처리 절차,STRUCTURED,,,settlement_status=PENDING,20
+L02,정산완료 건 조회,STRUCTURED,,,settlement_status=SETTLED,20
+L03,홀드 사유 확인,STRUCTURED,,,settlement_status=HOLD,20
+L04,캔슬 정산 내역,STRUCTURED,,,settlement_status=CANCELED,20
+L05,미정산 거래 기준,STRUCTURED,,,settlement_status=PENDING,20
+L06,정산완료 처리 안내,STRUCTURED,,,settlement_status=SETTLED,20
+L07,아직 정산이 확정되지 않아 대기 중인 거래,UNSTRUCTURED,,,settlement_status=PENDING,20
+L08,지급을 잠시 멈춰 묶어둔 건의 사유,UNSTRUCTURED,,,settlement_status=HOLD,20
+L09,정산이 모두 끝나 지급까지 마무리된 거래,UNSTRUCTURED,,,settlement_status=SETTLED,20
+L10,거래가 무효 처리되어 정산에서 빠진 경우,UNSTRUCTURED,,,settlement_status=CANCELED,20
+L11,처리가 끝나지 않아 남아 있는 정산 건,UNSTRUCTURED,,,settlement_status=PENDING,20
+L12,점검 때문에 지급이 멈춘 거래,UNSTRUCTURED,,,settlement_status=HOLD,20

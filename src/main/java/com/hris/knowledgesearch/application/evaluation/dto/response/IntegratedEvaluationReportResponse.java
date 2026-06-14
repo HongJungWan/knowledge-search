@@ -26,9 +26,10 @@ public record IntegratedEvaluationReportResponse(
             StratumMetrics unstructured) {
     }
 
-    /** 한 계층의 평균 지표. */
+    /** 한 계층의 평균 지표. precisionAtK 는 정밀도 압력 실험의 핵심(코드 필터 기여). */
     public record StratumMetrics(
             int queries,
+            double precisionAtK,
             double recallAtK,
             double mrr,
             double ndcgAtK) {

@@ -1,36 +1,70 @@
 package com.hris.knowledgesearch.application.evaluation;
 
+import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
+
 import java.util.List;
 import java.util.Map;
 
 /**
- * 하이브리드 검색 평가 정답셋 한 건.
+ * 검색 평가 정답셋 한 건.
  * <p>
- * {@code evaluation/gold_search.csv} 의 한 행 — 질의, 질의 유형(정형/비정형), 그 질의가 찾아야 하는 문서를
- * 식별하는 제목 부분문자열 목록, 정형 질의의 코드값 필터(선택).
- * 반환 레코드의 {@code title} 이 {@link #expectedTitleContains} 중 하나라도 포함하면 관련(relevant)으로 본다 —
- * 시드/ETL 의 자동 증분 id 에 의존하지 않아 데이터 변경에 강하다.
+ * relevance 판정은 두 모드:
+ * <ul>
+ *   <li><b>제목 모드</b>({@link #expectedTitleContains}): 반환 레코드 title 이 부분문자열을 포함하면 관련.
+ *       소규모/특정 문서 정답셋용.</li>
+ *   <li><b>코드 모드</b>({@link #expectedCode}, {@code key=value}): 반환 레코드의 {@code code_values} 가 해당 코드를
+ *       가지면 관련({@link KnowledgeRecord#hasCodeValue}). <b>정밀도 압력</b> 실험용 — 텍스트가 겹쳐도 코드값으로만
+ *       정답이 갈리는 대량 코퍼스에서 코드 필터의 정밀도 기여를 측정한다. {@link #relevantCount} 는 코퍼스 내
+ *       해당 코드 문서 수(recall@k 분모).</li>
+ * </ul>
  */
 public record GoldDocQuery(
         String queryId,
         String query,
         Kind kind,
         List<String> expectedTitleContains,
-        Map<String, String> codeValues) {
+        Map<String, String> codeValues,
+        String expectedCode,
+        int relevantCount) {
 
     /** 질의 유형 — 운영 관찰 50/50 분포의 두 계층. */
     public enum Kind {
-        /** 코드값·식별자·정확 용어 중심(키워드가 이미 강함). */
         STRUCTURED,
-        /** 자연어 패러프레이즈(키워드 약함 → 벡터 기여 기대). */
         UNSTRUCTURED
     }
 
-    /** 반환 레코드가 이 정답에 관련되는지(제목 부분문자열 포함). */
+    /** 반환 레코드가 이 정답에 관련되는지 — 코드 모드 우선, 없으면 제목 모드. */
+    public boolean isRelevant(KnowledgeRecord record) {
+        if (record == null) {
+            return false;
+        }
+        if (expectedCode != null && !expectedCode.isBlank()) {
+            int eq = expectedCode.indexOf('=');
+            if (eq <= 0) {
+                return false;
+            }
+            String key = expectedCode.substring(0, eq).trim();
+            String value = expectedCode.substring(eq + 1).trim();
+            // code_values 직렬화 형식(Postgres jsonb::text 는 콜론 뒤 공백 삽입)에 무관하게 판정한다.
+            String json = record.getCodeValues() == null ? "" : record.getCodeValues().replaceAll("\\s+", "");
+            return json.contains("\"" + key + "\":\"" + value + "\"");
+        }
+        return isRelevant(record.getTitle());
+    }
+
+    /** 제목 부분문자열 포함 여부(제목 모드). */
     public boolean isRelevant(String title) {
         if (title == null) {
             return false;
         }
         return expectedTitleContains.stream().anyMatch(title::contains);
+    }
+
+    /** recall@k 분모(총 관련 문서 수) — 코드 모드는 relevantCount, 제목 모드는 기대 토큰 수. */
+    public int totalRelevant() {
+        if (expectedCode != null && !expectedCode.isBlank()) {
+            return relevantCount;
+        }
+        return expectedTitleContains.size();
     }
 }

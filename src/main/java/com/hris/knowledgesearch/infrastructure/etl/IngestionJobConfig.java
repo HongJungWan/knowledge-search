@@ -73,13 +73,21 @@ public class IngestionJobConfig {
                 .build();
     }
 
-    /** JSON 배열을 SettlementSourceItem 으로 읽는 리더. */
+    /**
+     * JSON 배열을 SettlementSourceItem 으로 읽는 리더.
+     * <p>
+     * 소스 경로는 {@code etl.source-resource}(기본 {@code sample/settlement-source.json})로 설정 가능 —
+     * 평가용 대량 코퍼스({@code sample/settlement-source-large.json}) 적재에 쓴다.
+     */
     @Bean
-    public JsonItemReader<SettlementSourceItem> settlementSourceReader(ObjectMapper objectMapper) {
+    public JsonItemReader<SettlementSourceItem> settlementSourceReader(
+            ObjectMapper objectMapper,
+            @org.springframework.beans.factory.annotation.Value("${etl.source-resource:sample/settlement-source.json}")
+            String sourceResource) {
         return new JsonItemReaderBuilder<SettlementSourceItem>()
                 .name("settlementSourceReader")
                 .jsonObjectReader(new JacksonJsonObjectReader<>(objectMapper, SettlementSourceItem.class))
-                .resource(new ClassPathResource("sample/settlement-source.json"))
+                .resource(new ClassPathResource(sourceResource))
                 .build();
     }
 

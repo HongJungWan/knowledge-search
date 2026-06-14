@@ -26,6 +26,19 @@ class RetrievalMetricsTest {
     }
 
     @Test
+    @DisplayName("precision@k: 상위 k 중 관련 비율 (정밀도 압력 핵심 지표)")
+    void precisionAtK() {
+        // 상위 3 중 2건 관련 → 2/3
+        assertThat(RetrievalMetrics.precisionAtK(List.of(true, false, true, false), 3))
+                .isCloseTo(0.6667, org.assertj.core.data.Offset.offset(EPS));
+        // 코드 필터가 완벽히 거르면 상위 k 전부 관련 → 1.0
+        assertThat(RetrievalMetrics.precisionAtK(List.of(true, true, true), 3))
+                .isCloseTo(1.0, org.assertj.core.data.Offset.offset(EPS));
+        // 전부 무관 → 0
+        assertThat(RetrievalMetrics.precisionAtK(List.of(false, false), 3)).isZero();
+    }
+
+    @Test
     @DisplayName("MRR: 첫 관련 문서 순위의 역수, 없으면 0")
     void reciprocalRank() {
         assertThat(RetrievalMetrics.reciprocalRank(List.of(false, true)))

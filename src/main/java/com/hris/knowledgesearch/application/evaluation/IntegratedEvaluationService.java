@@ -42,7 +42,11 @@ public class IntegratedEvaluationService {
     private final MetadataResolvePort metadataPort;
 
     public IntegratedEvaluationReportResponse evaluate(int k, int limit) {
-        List<GoldDocQuery> gold = loadGold();
+        return evaluate(k, limit, GOLD_RESOURCE);
+    }
+
+    public IntegratedEvaluationReportResponse evaluate(int k, int limit, String goldResource) {
+        List<GoldDocQuery> gold = loadGold(goldResource);
 
         ArmReport keyword = runArm("KEYWORD", gold, k, limit, false, false);
         ArmReport metadataOnly = runArm("META", gold, k, limit, true, false);
@@ -72,9 +76,10 @@ public class IntegratedEvaluationService {
             List<KnowledgeRecord> results =
                     knowledgeRecordRepository.search(null, keyword, codeValues, embedding, limit);
 
-            List<Boolean> relevance = results.stream().map(r -> g.isRelevant(r.getTitle())).toList();
-            int totalRelevant = g.expectedTitleContains().size();
+            List<Boolean> relevance = results.stream().map(g::isRelevant).toList();
+            int totalRelevant = g.totalRelevant();
             PerQuery pq = new PerQuery(
+                    RetrievalMetrics.precisionAtK(relevance, k),
                     RetrievalMetrics.recallAtK(relevance, totalRelevant, k),
                     RetrievalMetrics.reciprocalRank(relevance),
                     RetrievalMetrics.ndcgAtK(relevance, totalRelevant, k));
@@ -109,45 +114,58 @@ public class IntegratedEvaluationService {
 
     private StratumMetrics average(List<PerQuery> queries) {
         if (queries.isEmpty()) {
-            return new StratumMetrics(0, 0, 0, 0);
+            return new StratumMetrics(0, 0, 0, 0, 0);
         }
+        double precision = 0;
         double recall = 0;
         double mrr = 0;
         double ndcg = 0;
         for (PerQuery q : queries) {
+            precision += q.precision();
             recall += q.recall();
             mrr += q.mrr();
             ndcg += q.ndcg();
         }
         int n = queries.size();
-        return new StratumMetrics(n, round(recall / n), round(mrr / n), round(ndcg / n));
+        return new StratumMetrics(n, round(precision / n), round(recall / n), round(mrr / n), round(ndcg / n));
     }
 
     private Interpretation interpret(ArmReport keyword, ArmReport meta, ArmReport vector, ArmReport integrated) {
-        boolean metaHelpsStructured = meta.structured().recallAtK() > keyword.structured().recallAtK();
-        boolean vectorHelpsUnstructured = vector.unstructured().recallAtK() > keyword.unstructured().recallAtK();
-        boolean metadataAddsOverVector = integrated.overall().recallAtK() > vector.overall().recallAtK();
-        double best = Math.max(Math.max(keyword.overall().recallAtK(), meta.overall().recallAtK()),
-                vector.overall().recallAtK());
-        boolean integratedBest = integrated.overall().recallAtK() >= best - 1e-9;
+        // 정밀도 압력 실험의 핵심은 precision@k(코드 필터가 텍스트로 못 가르는 상태를 정밀히 거름).
+        // recall 향상도 함께 인정한다(둘 중 하나라도 개선이면 기여로 본다).
+        boolean metaHelpsStructured =
+                gt(meta.structured().precisionAtK(), keyword.structured().precisionAtK())
+                        || gt(meta.structured().recallAtK(), keyword.structured().recallAtK());
+        boolean vectorHelpsUnstructured =
+                gt(vector.unstructured().recallAtK(), keyword.unstructured().recallAtK())
+                        || gt(vector.unstructured().precisionAtK(), keyword.unstructured().precisionAtK());
+        boolean metadataAddsOverVector =
+                gt(integrated.overall().precisionAtK(), vector.overall().precisionAtK())
+                        || gt(integrated.overall().recallAtK(), vector.overall().recallAtK());
+        double bestPrecision = Math.max(Math.max(keyword.overall().precisionAtK(), meta.overall().precisionAtK()),
+                vector.overall().precisionAtK());
+        boolean integratedBest = integrated.overall().precisionAtK() >= bestPrecision - 1e-9;
         String summary = String.format(
-                "정형 recall@k KEYWORD %.4f→META %.4f(%s) · 비정형 KEYWORD %.4f→VECTOR %.4f(%s) · "
-                        + "전체 VECTOR %.4f→INTEGRATED %.4f(MO 추가기여 %s) · INTEGRATED 최상 %s",
-                keyword.structured().recallAtK(), meta.structured().recallAtK(),
+                "정형 precision@k KEYWORD %.4f→META %.4f(%s) · 비정형 recall@k KEYWORD %.4f→VECTOR %.4f(%s) · "
+                        + "전체 precision@k VECTOR %.4f→INTEGRATED %.4f(MO 추가기여 %s)",
+                keyword.structured().precisionAtK(), meta.structured().precisionAtK(),
                 metaHelpsStructured ? "기여" : "무기여",
                 keyword.unstructured().recallAtK(), vector.unstructured().recallAtK(),
                 vectorHelpsUnstructured ? "기여" : "무기여",
-                vector.overall().recallAtK(), integrated.overall().recallAtK(),
-                metadataAddsOverVector ? "있음" : "없음",
-                integratedBest ? "예" : "아니오");
+                vector.overall().precisionAtK(), integrated.overall().precisionAtK(),
+                metadataAddsOverVector ? "있음" : "없음");
         return new Interpretation(metaHelpsStructured, vectorHelpsUnstructured,
                 metadataAddsOverVector, integratedBest, summary);
     }
 
-    private List<GoldDocQuery> loadGold() {
-        InputStream in = getClass().getClassLoader().getResourceAsStream(GOLD_RESOURCE);
+    private boolean gt(double a, double b) {
+        return a > b + 1e-9;
+    }
+
+    private List<GoldDocQuery> loadGold(String resource) {
+        InputStream in = getClass().getClassLoader().getResourceAsStream(resource);
         if (in == null) {
-            throw new IllegalStateException("정답셋 리소스를 찾을 수 없음: " + GOLD_RESOURCE);
+            throw new IllegalStateException("정답셋 리소스를 찾을 수 없음: " + resource);
         }
         return GoldDocQueryCsvParser.parse(in);
     }
@@ -156,6 +174,6 @@ public class IntegratedEvaluationService {
         return Math.round(value * 10000) / 10000.0;
     }
 
-    private record PerQuery(double recall, double mrr, double ndcg) {
+    private record PerQuery(double precision, double recall, double mrr, double ndcg) {
     }
 }

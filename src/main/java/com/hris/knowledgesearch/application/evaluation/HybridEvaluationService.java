@@ -57,8 +57,8 @@ public class HybridEvaluationService {
             List<KnowledgeRecord> results = knowledgeRecordRepository.search(
                     null, g.query(), g.codeValues(), embedding, limit);
 
-            List<Boolean> relevance = results.stream().map(r -> g.isRelevant(r.getTitle())).toList();
-            int totalRelevant = g.expectedTitleContains().size();
+            List<Boolean> relevance = results.stream().map(r -> g.isRelevant(r)).toList();
+            int totalRelevant = g.totalRelevant();
             PerQuery pq = new PerQuery(
                     RetrievalMetrics.recallAtK(relevance, totalRelevant, k),
                     RetrievalMetrics.reciprocalRank(relevance),

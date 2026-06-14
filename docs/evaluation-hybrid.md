@@ -60,3 +60,27 @@ curl 'localhost:8095/api/admin/evaluation/hybrid?k=3&limit=10'  # KEYWORD vs HYB
 - **MO↔KS 코드 어휘 정렬**: MO가 KS 문서 태그 어휘(merchant_grade 등)로도 해석하도록 매핑 보강 → coverage↑.
 - **정렬 전까지 구조 단순화 검토**: KS→MO 참조를 "코드값이 실제로 잡히는 정형 질의"에만 선택 적용(매 질의 2-홉 비용 회피). 비정형은 벡터 단독으로 충분.
 - MO의 질의 이해(동의어→표준어, FULL 1.0 vs BASELINE 0.34)는 **SQL 필터 생성 등 다른 용도**에서 값을 하므로 폐기가 아니라 **연결 방식 재설계**가 결론.
+
+## 결과 (2026-06-14 재측정 — 대량 코퍼스 · 정밀도 압력)
+교란요인을 제거한 재측정. 코퍼스 **80문서**(settlement_status 4값 × 20, `scripts/gen-corpus.py`): 모든 문서가 동일한 "정산 처리 절차" 공통 단락을 공유하고 상태는 **쿼리 표면형과 다른 패러프레이즈로만** 약하게 노출 → 텍스트로는 상태 구분 불가, **코드값(settlement_status)만이 정확히 구분**. relevance는 **코드값 기준**(`expectedCode`, relevantCount=20), 지표는 **precision@3**(코드 필터의 정밀도 기여). 골드 12(정형6=MO 해석 가능 표면형 미정산/정산완료/홀드/캔슬, 비정형6=패러프레이즈). 환경 동일(KS postgres,localmodel + MO postgres,local + bge-m3 + metadata.enabled).
+
+### `/api/admin/evaluation/integrated?gold=large&k=3` — coverage 0.4167
+| arm | P@3 전체 | P@3 정형 | P@3 비정형 | R@3 전체 |
+|---|---|---|---|---|
+| KEYWORD (MO✗ 벡터✗) | 0.333 | 0.333 | 0.333 | 0.050 |
+| META (MO✓ 벡터✗) | 0.667 | **1.000** | 0.333 | 0.100 |
+| VECTOR (MO✗ 벡터✓) | 0.500 | 0.333 | 0.667 | 0.075 |
+| INTEGRATED (MO✓ 벡터✓) | **0.833** | **1.000** | 0.667 | 0.125 |
+- `metadataHelpsStructured=true`, `vectorHelpsUnstructured=true`, **`metadataAddsOverVector=true`**
+- (R@3 상한은 3/20=0.15 — 질의당 관련 20건이므로 정밀도가 본질 지표. INTEGRATED 정형 R@3=0.15 = 상위3 전부 정답.)
+
+### 판정 — 결론이 뒤집힘
+**정밀도 압력 하에서 KS→MO 참조 구조는 실효성이 있다.** 텍스트가 상태를 구분 못 하는 상황에서:
+- **정형 질의: MO 코드 필터만이 정밀도를 0.333→1.000으로** 끌어올린다(키워드·벡터는 혼동 상태들 사이에서 ~0.33).
+- **비정형 질의: 벡터가 담당**(패러프레이즈, MO 미해석) — precision 0.333→0.667.
+- **INTEGRATED가 전 구간 최상**(전체 P@3 0.833) — MO가 벡터 위에 +0.333 정밀도를 더한다.
+- 직전 6문서 토이 코퍼스의 "MO 무기여"는 **코퍼스 규모의 artifact**였음이 확인됨(벡터가 6문서에선 자명히 1.0).
+
+### 남은 한계 (개선 대상 — `docs/improvement-roadmap.md`)
+- **coverage 0.42**: 정형 질의의 표면형만 MO가 코드로 해석. 비정형·미정렬 어휘는 여전히 미해석 → MO↔KS 코드 어휘 정렬이 다음 레버.
+- 비정형 P@3 0.667(미완) → 리랭킹/청킹으로 보강 여지.

@@ -13,6 +13,21 @@ public final class RetrievalMetrics {
     private RetrievalMetrics() {
     }
 
+    /** precision@k = (상위 k 중 관련 문서 수) / k. 정밀도 압력 실험의 핵심 지표(코드 필터의 정밀도 기여). */
+    public static double precisionAtK(List<Boolean> rankedRelevance, int k) {
+        if (k <= 0) {
+            return 0.0;
+        }
+        int limit = Math.min(k, rankedRelevance.size());
+        int hits = 0;
+        for (int i = 0; i < limit; i++) {
+            if (rankedRelevance.get(i)) {
+                hits++;
+            }
+        }
+        return (double) hits / k;
+    }
+
     /** recall@k = (상위 k 중 관련 문서 수) / (총 관련 문서 수). totalRelevant=0 이면 0. */
     public static double recallAtK(List<Boolean> rankedRelevance, int totalRelevant, int k) {
         if (totalRelevant <= 0) {

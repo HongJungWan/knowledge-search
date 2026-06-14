@@ -9,6 +9,7 @@ import com.hris.knowledgesearch.application.knowledge.port.MetadataResolveResult
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.domain.knowledge.Reranker;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,7 @@ public class IntegratedEvaluationService {
     private final KnowledgeRecordRepository knowledgeRecordRepository;
     private final EmbeddingProvider embeddingProvider;
     private final MetadataResolvePort metadataPort;
+    private final Reranker reranker;
 
     public IntegratedEvaluationReportResponse evaluate(int k, int limit) {
         return evaluate(k, limit, GOLD_RESOURCE);
@@ -52,12 +54,40 @@ public class IntegratedEvaluationService {
         ArmReport metadataOnly = runArm("META", gold, k, limit, true, false);
         ArmReport vectorOnly = runArm("VECTOR", gold, k, limit, false, true);
         ArmReport integrated = runArm("INTEGRATED", gold, k, limit, true, true);
+        ArmReport reranked = runRerankArm("RERANKED", gold, k, limit);
 
         double coverage = metadataCodeValueCoverage(gold);
-        Interpretation interpretation = interpret(keyword, metadataOnly, vectorOnly, integrated);
+        Interpretation interpretation = interpret(keyword, metadataOnly, vectorOnly, integrated, reranked);
 
-        return new IntegratedEvaluationReportResponse(
-                gold.size(), k, limit, keyword, metadataOnly, vectorOnly, integrated, coverage, interpretation);
+        return new IntegratedEvaluationReportResponse(gold.size(), k, limit,
+                keyword, metadataOnly, vectorOnly, integrated, reranked, coverage, interpretation);
+    }
+
+    /** INTEGRATED 후보(pool=limit)를 LLM 리랭커로 top-k 재정렬한 arm. NoOp 리랭커면 INTEGRATED 와 동일. */
+    private ArmReport runRerankArm(String arm, List<GoldDocQuery> gold, int k, int limit) {
+        List<PerQuery> structured = new ArrayList<>();
+        List<PerQuery> unstructured = new ArrayList<>();
+        for (GoldDocQuery g : gold) {
+            MetadataResolveResult resolved = metadataPort.resolve(g.query());
+            String keyword = StringUtils.hasText(resolved.normalizedQuery()) ? resolved.normalizedQuery() : g.query();
+            Map<String, String> codeValues = extractCodeValues(resolved);
+            float[] embedding = embeddingProvider.embed(keyword);
+            List<KnowledgeRecord> candidates =
+                    knowledgeRecordRepository.search(null, keyword, codeValues, embedding, limit);
+            List<KnowledgeRecord> ranked = reranker.rerank(g.query(), candidates, k);
+
+            List<Boolean> relevance = ranked.stream().map(g::isRelevant).toList();
+            int totalRelevant = g.totalRelevant();
+            PerQuery pq = new PerQuery(
+                    RetrievalMetrics.precisionAtK(relevance, k),
+                    RetrievalMetrics.recallAtK(relevance, totalRelevant, k),
+                    RetrievalMetrics.reciprocalRank(relevance),
+                    RetrievalMetrics.ndcgAtK(relevance, totalRelevant, k));
+            (g.kind() == GoldDocQuery.Kind.STRUCTURED ? structured : unstructured).add(pq);
+        }
+        List<PerQuery> all = new ArrayList<>(structured);
+        all.addAll(unstructured);
+        return new ArmReport(arm, average(all), average(structured), average(unstructured));
     }
 
     private ArmReport runArm(String arm, List<GoldDocQuery> gold, int k, int limit,
@@ -130,7 +160,8 @@ public class IntegratedEvaluationService {
         return new StratumMetrics(n, round(precision / n), round(recall / n), round(mrr / n), round(ndcg / n));
     }
 
-    private Interpretation interpret(ArmReport keyword, ArmReport meta, ArmReport vector, ArmReport integrated) {
+    private Interpretation interpret(ArmReport keyword, ArmReport meta, ArmReport vector, ArmReport integrated,
+                                     ArmReport reranked) {
         // 정밀도 압력 실험의 핵심은 precision@k(코드 필터가 텍스트로 못 가르는 상태를 정밀히 거름).
         // recall 향상도 함께 인정한다(둘 중 하나라도 개선이면 기여로 본다).
         boolean metaHelpsStructured =
@@ -142,20 +173,25 @@ public class IntegratedEvaluationService {
         boolean metadataAddsOverVector =
                 gt(integrated.overall().precisionAtK(), vector.overall().precisionAtK())
                         || gt(integrated.overall().recallAtK(), vector.overall().recallAtK());
+        boolean rerankImprovesUnstructured = gt(reranked.unstructured().precisionAtK(),
+                integrated.unstructured().precisionAtK());
         double bestPrecision = Math.max(Math.max(keyword.overall().precisionAtK(), meta.overall().precisionAtK()),
-                vector.overall().precisionAtK());
-        boolean integratedBest = integrated.overall().precisionAtK() >= bestPrecision - 1e-9;
+                Math.max(vector.overall().precisionAtK(), integrated.overall().precisionAtK()));
+        boolean integratedBest = reranked.overall().precisionAtK() >= bestPrecision - 1e-9;
         String summary = String.format(
                 "정형 precision@k KEYWORD %.4f→META %.4f(%s) · 비정형 recall@k KEYWORD %.4f→VECTOR %.4f(%s) · "
-                        + "전체 precision@k VECTOR %.4f→INTEGRATED %.4f(MO 추가기여 %s)",
+                        + "전체 precision@k VECTOR %.4f→INTEGRATED %.4f(MO 추가기여 %s) · "
+                        + "비정형 precision@k INTEGRATED %.4f→RERANKED %.4f(리랭킹 %s)",
                 keyword.structured().precisionAtK(), meta.structured().precisionAtK(),
                 metaHelpsStructured ? "기여" : "무기여",
                 keyword.unstructured().recallAtK(), vector.unstructured().recallAtK(),
                 vectorHelpsUnstructured ? "기여" : "무기여",
                 vector.overall().precisionAtK(), integrated.overall().precisionAtK(),
-                metadataAddsOverVector ? "있음" : "없음");
+                metadataAddsOverVector ? "있음" : "없음",
+                integrated.unstructured().precisionAtK(), reranked.unstructured().precisionAtK(),
+                rerankImprovesUnstructured ? "기여" : "무기여");
         return new Interpretation(metaHelpsStructured, vectorHelpsUnstructured,
-                metadataAddsOverVector, integratedBest, summary);
+                metadataAddsOverVector, rerankImprovesUnstructured, integratedBest, summary);
     }
 
     private boolean gt(double a, double b) {

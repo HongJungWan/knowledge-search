@@ -15,6 +15,7 @@ public record IntegratedEvaluationReportResponse(
         ArmReport metadataOnly,
         ArmReport vectorOnly,
         ArmReport integrated,
+        ArmReport reranked,
         double metadataCodeValueCoverage,
         Interpretation interpretation) {
 
@@ -40,6 +41,7 @@ public record IntegratedEvaluationReportResponse(
             boolean metadataHelpsStructured,
             boolean vectorHelpsUnstructured,
             boolean metadataAddsOverVector,
+            boolean rerankImprovesUnstructured,
             boolean integratedBest,
             String summary) {
     }

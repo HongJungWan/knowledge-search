@@ -108,6 +108,13 @@ embedding:
   bedrock:
     model-id: amazon.titan-embed-text-v2:0   # bedrock 프로파일(향후)
 
+# --- 리랭킹 (로드맵 #4) ---
+# 기본 NoOp(재정렬 없음). llmrerank 프로파일에서 LlmJudgeReranker 활성 — Ollama 생성 모델로 후보를
+# 리스트와이즈 재정렬해 의미 유사 문서를 변별한다. 모델은 한국어 특화 소형(EXAONE 3.5 2.4B) 기본.
+rerank:
+  base-url: http://localhost:11434
+  model: exaone3.5:2.4b
+
 # --- ACTUATOR ---
 management:
   endpoints:

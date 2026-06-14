@@ -84,3 +84,18 @@ curl 'localhost:8095/api/admin/evaluation/hybrid?k=3&limit=10'  # KEYWORD vs HYB
 ### 남은 한계 (개선 대상 — `docs/improvement-roadmap.md`)
 - **coverage 0.42**: 정형 질의의 표면형만 MO가 코드로 해석. 비정형·미정렬 어휘는 여전히 미해석 → MO↔KS 코드 어휘 정렬이 다음 레버.
 - 비정형 P@3 0.667(미완) → 리랭킹/청킹으로 보강 여지.
+
+## 결과 (2026-06-14 — 로드맵 #1 어휘 정렬 적용 후)
+MO `/resolve` 가 Term 동의어로 확장된 토큰뿐 아니라 **잔여 질의의 모든 코드값 표면형**("홀드"→HOLD, "캔슬"→CANCELED, "대기"→PENDING 등)을 코드값 컬럼 매핑으로 내려주도록 확장(`ResolveService.buildColumnMappings`/`resolveCodeCandidates`). BASELINE 순수성·재현율 임계값 무회귀 확인.
+
+| 지표 | #1 전 | **#1 후** |
+|---|---|---|
+| MO codeValue coverage | 0.417 | **0.583** |
+| INTEGRATED P@3 전체 | 0.833 | **0.917** |
+| INTEGRATED P@3 정형 | 1.000 | 1.000 |
+| INTEGRATED P@3 비정형 | 0.667 | **0.833** |
+| META P@3 비정형 | 0.333 | **0.500** |
+
+- 어휘 정렬로 **coverage↑(0.42→0.58)**, 정형은 이미 1.000 유지, **비정형 정밀도까지 0.667→0.833** 향상 — "대기" 같은 코드 표면형이 패러프레이즈에 섞이면 코드 필터가 추가 작동.
+- `metadataAddsOverVector=true` 유지(VECTOR 0.500 → INTEGRATED 0.917, 마진 +0.417로 확대).
+- 남은 헤드룸: 비정형 0.833(코드 표면형 없는 순수 패러프레이즈는 여전히 벡터 의존) → 리랭킹/청킹(로드맵 #3·#4).

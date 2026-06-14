@@ -41,7 +41,7 @@ import java.util.regex.Pattern;
  * 신규 적재({@link #save}) 시 {@code title + body} 를 {@link EmbeddingProvider} 로 임베딩해 같은 INSERT 에 기록한다.
  */
 @Repository
-@Profile("postgres")
+@Profile("postgres & !opensearch")
 public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRepository {
 
     private static final String TABLE = "knowledge_record";

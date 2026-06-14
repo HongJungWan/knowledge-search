@@ -115,6 +115,12 @@ rerank:
   base-url: http://localhost:11434
   model: exaone3.5:2.4b
 
+# --- OpenSearch (로드맵 #6, opensearch 프로파일) ---
+# BM25+k-NN 하이브리드 검색 백엔드(운영 타깃 데모). postgres 프로파일과 함께 활성하면 KnowledgeRecord
+# 검색은 OpenSearch, SearchLog/배치는 Postgres 를 쓴다. (로컬: docker/docker-compose.opensearch.yml)
+opensearch:
+  url: http://localhost:9200
+
 # --- ACTUATOR ---
 management:
   endpoints:

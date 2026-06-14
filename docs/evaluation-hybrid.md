@@ -123,3 +123,18 @@ INTEGRATED 후보(top-10)를 Ollama LLM(EXAONE 3.5 2.4B, 한국어)으로 **리�
 - **리랭킹이 잔여 비정형을 0.667→0.833, 전체 0.833→0.917**(MRR·nDCG 동반 상승). `rerankImprovesUnstructured=true`. 진단(의미 변별 레버) 입증 — 청킹(granularity)이 못 올린 부분을 리랭킹이 올림.
 - **구현 교훈**: 리랭커 snippet 에 *구별 정보*가 들어와야 한다. 처음엔 본문 앞 120자만 넘겨 효과 0(앞부분이 공통 보일러플레이트) → 800자로 늘려 상태 구분 문장을 포함시키자 효과 발생. (장문 운영 문서에선 #3 청킹으로 관련 청크만 골라 리랭커에 주는 조합이 자연스러움 — 두 기법의 시너지.)
 - 비용: 질의당 LLM 호출 1회(리스트와이즈). NoOp 기본, llmrerank 프로파일에서만 활성.
+
+## 결과 (2026-06-14 — 로드맵 #6 로컬 OpenSearch 하이브리드, 운영 타깃 검증)
+운영 검색 타깃(OpenSearch)을 로컬 Docker(AWS 불필요)로 구현·측정. `OpenSearchKnowledgeRecordRepositoryImpl`(@Profile `opensearch`): BM25 + k-NN 두 질의 + **Java RRF(k=60) 융합**(pgvector SQL RRF 와 동일 개념 이관), 정형 필터(domain·code_values term)는 두 arm 모두에 적용. 프로파일 `postgres,localmodel,opensearch`(Postgres=SearchLog/배치, OpenSearch=KnowledgeRecord 검색). 코퍼스 80문서(large) 색인, gold=large.
+
+| arm | P@3 전체 | P@3 정형 | P@3 비정형 | (참고: pgvector 경로 전체) |
+|---|---|---|---|---|
+| KEYWORD | 0.583 | 0.167 | 1.000 | 0.583 |
+| META | 0.750 | 0.500 | 1.000 | — |
+| VECTOR | 0.694 | 0.389 | 1.000 | — |
+| **INTEGRATED** | **1.000** | **1.000** | **1.000** | 0.917 |
+
+- **OpenSearch INTEGRATED P@3=1.000** — pgvector 경로(0.917)보다 우수. `metadataAddsOverVector=true`(코드 필터로 정형 1.000), 비정형은 **BM25만으로 1.000**.
+- **핵심 차이**: OpenSearch **BM25**가 한국어 패러프레이즈를 Postgres LIKE/ILIKE 보다 훨씬 잘 매칭(KEYWORD 비정형 0.333→1.000). 즉 운영 검색엔진(BM25 분석기 + k-NN)이 dev pgvector 보다 강함 — 이관 가치 입증.
+- **이관 매핑 확인**: pgvector 의 정형 필터+RRF 하이브리드가 OpenSearch(term filter + BM25/kNN + RRF)로 1:1 옮겨짐. 운영에선 임베딩을 Bedrock Titan 으로, RRF 를 OpenSearch 네이티브 hybrid 파이프라인으로 교체하면 됨(코드 구조 동일).
+- 남은 #6: Bedrock Titan 임베딩(`BedrockEmbeddingProvider` 구현 완료, AWS 자격증명 시 활성) — 인프라 확보 후.

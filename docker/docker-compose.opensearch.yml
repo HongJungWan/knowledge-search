@@ -1,0 +1,32 @@
+# ===================================================================
+# knowledge-search 로컬 OpenSearch (BM25 + k-NN 하이브리드 — 운영 검색 타깃 데모, AWS 불필요)
+# 기동: docker compose -f docker/docker-compose.opensearch.yml up -d
+# 앱: ./gradlew bootRun --args='--spring.profiles.active=postgres,localmodel,opensearch'
+#   (postgres = SearchLog/배치 datasource, opensearch = KnowledgeRecord 검색 백엔드)
+# 보안 플러그인 비활성(로컬 전용, http://localhost:9200). 단일 노드.
+# ===================================================================
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.19.0
+    container_name: knowledge-search-opensearch
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    ports:
+      - "9200:9200"
+    volumes:
+      - knowledge-os-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\"'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  knowledge-os-data:

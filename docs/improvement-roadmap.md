@@ -12,7 +12,7 @@
 | 3 | **문서 청킹 ☑측정완료(null)** | 장문 본문 통째 임베딩 | 합성 코퍼스에선 효과 없음(동일) — 기본 OFF, 진짜 장문 이질문서용 | 중 |
 | 4 | **리랭킹(LLM-judge) ✅완료(2026-06-14)** | 비정형 정밀도 미완(0.667) | 비정형 0.667→0.833, 전체 0.833→0.917 | 중 |
 | 5 | **평가 상시화(회귀 게이트) ✅완료(2026-06-14)** | 측정이 수동 | scripts/eval-gate.sh 임계 검사·회귀 시 비0 종료 | 소 |
-| 6 | 운영 경로(Bedrock+OpenSearch) | 현 pgvector는 개발용 | 운영 확장성 | 대 |
+| 6 | **운영 경로(OpenSearch ✅ / Bedrock ⏳AWS)** | 현 pgvector는 개발용 | OpenSearch INTEGRATED P@3 1.000(>pgvector 0.917) | 대 |
 | 7 | RRF/FTS 튜닝 | k=60 고정, 한국어 FTS 부재 | 융합 품질 | 소~중 |
 
 ---
@@ -46,10 +46,10 @@
 - **운영(나이틀리/수동)**: 브링업(docs/evaluation-hybrid.md: compose pgvector ×2 → ollama+모델 → MO(postgres,local) → KS(postgres,localmodel[,llmrerank],METADATA_ENABLED) → /etl/run) 후 `bash scripts/eval-gate.sh`.
 - **한계/후속**: 전체 E2E(도커+Ollama+2앱+1.2GB 모델)는 GH Actions 표준 러너에 부적합 → 로컬/전용 러너 나이틀리. 골드셋을 운영 질의 로그(`search_log`)에서 주기 보강 권장.
 
-## 6. 운영 경로 (Bedrock + OpenSearch)
-- **문제**: 현 pgvector/Postgres는 개발·측정 차량. KS 운영은 Redshift(pgvector 불가).
-- **제안**: 임베딩 `BedrockEmbeddingProvider`(Titan v2, 이미 구현) 활성, 검색은 OpenSearch(BM25+kNN **네이티브 RRF**)로 4번째 어댑터 추가 — 본 SQL RRF가 1:1 이식. MO는 Postgres+pg_trgm로 운영 가능(이미 검증).
-- **기대효과**: 운영 규모 확장성·관리형 인프라. 차원(1024) 정렬 유지로 재인덱싱 최소.
+## 6. 운영 경로 (OpenSearch ✅ 완료 / Bedrock ⏳ AWS 대기) (2026-06-14)
+- **수행(OpenSearch, 로컬 Docker, AWS 불필요)**: `OpenSearchKnowledgeRecordRepositoryImpl`(@Profile `opensearch`) — BM25+k-NN 두 질의 + Java RRF(k=60) 융합 + 정형 필터(term). 인덱스 매핑(knn_vector dim 1024) 자동 생성, 적재 시 색인. 프로파일 `postgres,opensearch`(Postgres=SearchLog/배치).
+- **결과(E2E, large 코퍼스)**: OpenSearch INTEGRATED **P@3 1.000**(정형 1.000·비정형 1.000) > pgvector 0.917. BM25 가 한국어 패러프레이즈를 LIKE 보다 훨씬 잘 매칭(KEYWORD 비정형 0.333→1.000). SQL RRF→OpenSearch 1:1 이관 확인.
+- **남은 부분(Bedrock)**: 임베딩 `BedrockEmbeddingProvider`(Titan v2) 구현 완료 — AWS 자격증명 확보 시 `bedrock` 프로파일로 활성(차원 1024 정렬 유지로 재인덱싱 최소). 운영 RRF 는 OpenSearch 네이티브 hybrid 파이프라인으로 교체 가능(코드 구조 동일).
 
 ## 7. RRF/FTS 튜닝
 - **문제**: RRF k=60 고정, Postgres 한국어 형태소 FTS 미사용(키워드 arm은 LIKE/ILIKE).
@@ -61,6 +61,6 @@
 ## 결론 / 진행 상황
 정밀도 압력 재측정으로 **KS→MO 참조 구조의 실효성(정형 정밀도 1.000)이 입증**됐고, **#1 어휘 정렬 완료**로 적용 범위를 넓혀 INTEGRATED P@3 0.833→0.917·비정형 0.667→0.833까지 끌어올렸다.
 진행 결과 누적: **#1 어휘 정렬 ✅**(coverage 0.42→0.58, INTEGRATED 0.833→0.917@short corpus) + **#4 리랭킹 ✅**(장문 코퍼스 비정형 0.667→0.833, 전체 0.833→0.917) → 정형은 MO 코드 필터로 1.000, 비정형은 리랭킹으로 0.833. **#3 청킹 ☑측정완료(null)**(합성 코퍼스 한계, 장문 이질문서용 보관).
-**#5 평가 상시화 ✅**(scripts/eval-gate.sh — 회귀 게이트). 누적: #1·#4·#5 ✅, #3 ☑측정완료(null).
-- **남은 항목**: #2 라우팅(품질 무영향 지연 최적화) · #7 RRF/FTS 튜닝 · #6 운영 경로(Bedrock+OpenSearch).
-- **보류 근거**: #6 AWS 자격증명·OpenSearch 인프라 필요. #2/#7 은 품질 영향이 작아 후순위(측정 근거). **다음 큰 레버는 실데이터 평가셋** — 합성 코퍼스의 한계가 #3에서 드러남(진짜 운영 문서/질의 로그로 #3·리랭킹의 실가치 재측정 필요).
+누적 완료: **#1·#4·#5·#6(OpenSearch) ✅**, #3 ☑측정완료(null). 현재 pgvector 경로 P@3 0.917 / OpenSearch 경로 **1.000**.
+- **남은 항목**: #6 Bedrock(AWS 자격증명 대기, 코드 준비됨) · #2 라우팅(품질 무영향 지연 최적화) · #7 RRF/FTS 튜닝.
+- **보류 근거**: Bedrock=AWS 자격증명 필요. #2/#7 은 품질 영향이 작아 후순위(측정 근거). **다음 큰 레버는 실데이터 평가셋** — 합성 코퍼스의 한계가 #3에서 드러남(진짜 운영 문서/질의 로그로 #3·리랭킹의 실가치 재측정 필요).

@@ -1,0 +1,54 @@
+# ===================================================================
+# knowledge-search — postgres 프로파일 (pgvector 하이브리드 검색)
+# 실행: --spring.profiles.active=postgres  (벡터 arm 실측은 +localmodel, AWS 는 +bedrock)
+# 스키마는 Flyway(db/migration)가 소유한다 — ddl-auto: none, H2 의 data.sql 시드는 미사용.
+# 로컬 기동: docker compose -f docker/docker-compose.postgres.yml up -d (pgvector/pg16)
+# 이 프로파일은 KS 운영(Redshift)의 대체가 아니라 개발/스테이징/실효성 측정 차량이다.
+# ===================================================================
+
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:knowledgedb}
+    username: ${DB_USER:knowledge}
+    password: ${DB_PASS:knowledge}
+    hikari:
+      maximum-pool-size: 10
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    # data.sql 미사용(아래 sql.init.mode=never) → 끈다. Flyway 활성 시 true 면 flyway↔EMF 순환 의존 발생.
+    defer-datasource-initialization: false
+    hibernate:
+      ddl-auto: none           # Flyway 가 스키마 소유 — @Lob/jsonb 의 validate 타입 충돌 회피(redshift 프로파일과 동일 원칙)
+
+  # Flyway: 이 프로파일에서만 활성(베이스 application.yml 은 false). db/migration/V1,V2 적용.
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  sql:
+    init:
+      mode: never              # data.sql 시드는 local(H2) 전용
+
+  h2:
+    console:
+      enabled: false
+
+  # 배치 메타테이블은 주(Postgres) DataSource 에 생성(Postgres 는 시퀀스 지원 — Redshift 와 달리 분리 불필요).
+  batch:
+    jdbc:
+      initialize-schema: always
+
+# 임베딩 차원은 베이스(1024)를 상속 — pgvector 컬럼 vector(1024) 와 일치(부팅 검증).
+# 벡터 arm 실측: --spring.profiles.active=postgres,localmodel (Ollama bge-m3) 또는 ...,bedrock.
+
+# metadata-ontology 연동
+metadata:
+  enabled: ${METADATA_ENABLED:false}
+  base-url: ${METADATA_BASE_URL:http://localhost:8096}
+
+# Spectrum 은 Redshift 전용 — postgres 경로는 미사용.
+search:
+  spectrum:
+    enabled: false

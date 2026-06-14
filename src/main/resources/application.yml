@@ -57,6 +57,12 @@ spring:
     init:
       mode: always
 
+  # --- FLYWAY ---
+  # 베이스/LOCAL(H2)·redshift 프로파일에서는 끈다. Flyway 마이그레이션(db/migration, Postgres 문법)은
+  # postgres 프로파일(application-postgres.yml)에서만 활성화한다. H2 는 create-drop, Redshift 는 scripts/redshift 가 관리.
+  flyway:
+    enabled: false
+
   # --- SPRING BATCH (ETL, PRD §7) ---
   batch:
     jdbc:
@@ -85,6 +91,18 @@ metadata:
 search:
   spectrum:
     enabled: false
+
+# --- 임베딩 (하이브리드 검색 벡터 arm) ---
+# dimension 은 pgvector 컬럼 vector(N) 과 반드시 일치해야 한다(부팅 시 검증). 기본 구현은 결정론적 해싱
+# 스텁(HashingEmbeddingProvider) — 의미 없음, 배선/마이그레이션/RRF SQL 검증 전용. 실제 재현율 측정은
+# localmodel 프로파일(Ollama 호환 HTTP, bge-m3) 또는 bedrock 프로파일(Titan v2). 셋 다 1024 차원으로 정렬.
+embedding:
+  dimension: 1024
+  local:
+    base-url: http://localhost:11434     # Ollama 기본. /api/embeddings 호출(localmodel 프로파일)
+    model: bge-m3
+  bedrock:
+    model-id: amazon.titan-embed-text-v2:0   # bedrock 프로파일(향후)
 
 # --- ACTUATOR ---
 management:

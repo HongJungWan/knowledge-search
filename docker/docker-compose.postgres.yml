@@ -1,0 +1,27 @@
+# ===================================================================
+# knowledge-search 로컬 pgvector 개발/측정용 PostgreSQL
+# 기동: docker compose -f docker/docker-compose.postgres.yml up -d
+# 앱 실행: ./gradlew bootRun --args='--spring.profiles.active=postgres'
+#   벡터 arm 실측은 ',localmodel' 추가 + Ollama(bge-m3) 기동 필요.
+# application-postgres.yml 의 기본 접속정보(knowledgedb/knowledge/knowledge)와 일치한다.
+# ===================================================================
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: knowledge-search-pgvector
+    environment:
+      POSTGRES_DB: knowledgedb
+      POSTGRES_USER: knowledge
+      POSTGRES_PASSWORD: knowledge
+    ports:
+      - "5432:5432"
+    volumes:
+      - knowledge-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knowledge -d knowledgedb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  knowledge-pgdata:

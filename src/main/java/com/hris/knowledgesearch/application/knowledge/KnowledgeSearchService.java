@@ -2,6 +2,7 @@ package com.hris.knowledgesearch.application.knowledge;
 
 import com.hris.knowledgesearch.application.knowledge.port.MetadataResolvePort;
 import com.hris.knowledgesearch.application.knowledge.port.MetadataResolveResult;
+import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
 import com.hris.knowledgesearch.domain.knowledge.SearchLog;
@@ -37,6 +38,7 @@ public class KnowledgeSearchService {
     private final KnowledgeRecordRepository knowledgeRecordRepository;
     private final SearchLogRepository searchLogRepository;
     private final MetadataResolvePort metadataPort;
+    private final EmbeddingProvider embeddingProvider;
 
     /**
      * 지식 검색 (search_knowledge).
@@ -62,8 +64,12 @@ public class KnowledgeSearchService {
         // metadata 가 코드값 매핑을 준 경우 filters 에 보강 (호출자 filters 우선)
         Map<String, String> codeValues = mergeCodeValues(resolved, filters);
 
-        // 2) 도메인 포트 검색
-        List<KnowledgeRecord> records = knowledgeRecordRepository.search(domain, normalized, codeValues, effectiveLimit);
+        // 2) 도메인 포트 검색 (하이브리드)
+        // 질의 임베딩을 계산해 5-arg 포트로 전달한다. postgres 어댑터는 RRF 하이브리드로 융합하고,
+        // H2/Redshift 어댑터는 기본 메서드가 임베딩을 무시해 키워드 전용으로 자동 강등된다.
+        float[] queryEmbedding = embeddingProvider.embed(normalized);
+        List<KnowledgeRecord> records =
+                knowledgeRecordRepository.search(domain, normalized, codeValues, queryEmbedding, effectiveLimit);
 
         // 3) 요약 변환
         List<KnowledgeSummaryResponse> summaries = records.stream()

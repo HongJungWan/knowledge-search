@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
  * IDENTITY 전략·CLOB 미지원이라 JPA 를 태우지 않는다(PRD §3.1).
  */
 @Repository
-@Profile("!redshift")
+@Profile("!redshift & !postgres")
 @RequiredArgsConstructor
 public class KnowledgeRecordRepositoryImpl implements KnowledgeRecordRepository {
 

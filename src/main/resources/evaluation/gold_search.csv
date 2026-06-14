@@ -1,0 +1,13 @@
+queryId,query,kind,expectedTitleContains,codeValues
+S1,미정산 PENDING 처리,STRUCTURED,미정산,settlement_status=PENDING
+S2,수수료율 체계,STRUCTURED,수수료율,
+S3,정산 보류 HOLD,STRUCTURED,보류,settlement_status=HOLD
+S4,지급일 T+2 규칙,STRUCTURED,지급일,
+S5,정산 주기 마감 정책,STRUCTURED,주기,
+S6,환불 차감 규칙,STRUCTURED,환불,adjustment_type=REFUND
+U1,돈은 보통 며칠 뒤에 들어오나요,UNSTRUCTURED,지급일,
+U2,구매자가 결제를 무를 때 지급액은 어떻게 처리되나요,UNSTRUCTURED,환불,
+U3,수상한 거래라 지급을 멈출 수 있나요,UNSTRUCTURED,보류,
+U4,아직 정리되지 않은 거래 결과는 어떻게 되나요,UNSTRUCTURED,미정산,
+U5,거래는 얼마 간격으로 모아서 끊나요,UNSTRUCTURED,주기,
+U6,장사하는 곳마다 떼는 비율이 다른가요,UNSTRUCTURED,수수료율,

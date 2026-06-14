@@ -26,6 +26,21 @@ public interface KnowledgeRecordRepository {
      */
     List<KnowledgeRecord> search(String domain, String keyword, Map<String, String> codeValues, int limit);
 
+    /**
+     * 하이브리드 검색(키워드 + 벡터). {@code queryEmbedding} 이 있으면 벡터 arm 을 RRF 로 융합한다.
+     * <p>
+     * 기본 구현은 임베딩을 무시하고 4-arg 키워드 검색으로 위임한다 — H2/Redshift 어댑터는 벡터를
+     * 지원하지 않으므로 자동으로 키워드 전용으로 강등된다. {@code PostgresKnowledgeRecordRepositoryImpl}
+     * 만 이 메서드를 오버라이드해 pgvector RRF 하이브리드를 수행한다(정형 필터=domain·code_values 는
+     * 하드 WHERE 로 정밀도 보존, 키워드·벡터 arm 은 그 안에서만 랭킹·융합).
+     *
+     * @param queryEmbedding 질의 임베딩(L2 정규화, dimension 일치), null 이면 벡터 arm 미적용
+     */
+    default List<KnowledgeRecord> search(String domain, String keyword, Map<String, String> codeValues,
+                                         float[] queryEmbedding, int limit) {
+        return search(domain, keyword, codeValues, limit);
+    }
+
     /** ID 로 단건 조회. */
     Optional<KnowledgeRecord> findById(Long id);
 

@@ -91,6 +91,10 @@ metadata:
 search:
   spectrum:
     enabled: false
+  # 청킹 검색(로드맵 #3) — postgres 프로파일에서만 의미. true 면 적재 시 청크 임베딩 생성 +
+  # 벡터 arm 이 문서의 최상 청크로 랭킹(장문 희석 회피). 기본 false(통째-임베딩).
+  chunking:
+    enabled: false
 
 # --- 임베딩 (하이브리드 검색 벡터 arm) ---
 # dimension 은 pgvector 컬럼 vector(N) 과 반드시 일치해야 한다(부팅 시 검증). 기본 구현은 결정론적 해싱

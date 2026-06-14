@@ -3,7 +3,9 @@ package com.hris.knowledgesearch.infrastructure.persistence.knowledge;
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.infrastructure.embedding.TextChunker;
 import com.hris.knowledgesearch.infrastructure.embedding.VectorLiterals;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -61,11 +63,15 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final EmbeddingProvider embeddingProvider;
+    /** 청킹 검색 모드(로드맵 #3). true 면 적재 시 청크 임베딩을 만들고 벡터 arm 이 청크 단위로 랭킹한다. */
+    private final boolean chunkingEnabled;
 
     public PostgresKnowledgeRecordRepositoryImpl(NamedParameterJdbcTemplate jdbcTemplate,
-                                                 EmbeddingProvider embeddingProvider) {
+                                                 EmbeddingProvider embeddingProvider,
+                                                 @Value("${search.chunking.enabled:false}") boolean chunkingEnabled) {
         this.jdbcTemplate = jdbcTemplate;
         this.embeddingProvider = embeddingProvider;
+        this.chunkingEnabled = chunkingEnabled;
     }
 
     @Override
@@ -117,10 +123,21 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
 
         if (hasVector) {
             params.addValue("qvec", VectorLiterals.toLiteral(queryEmbedding));
-            sql.append(", vec AS (")
-                    .append(" SELECT id, ROW_NUMBER() OVER (ORDER BY embedding <=> CAST(:qvec AS vector)) AS rnk")
-                    .append(" FROM filtered WHERE embedding IS NOT NULL")
-                    .append(" ORDER BY embedding <=> CAST(:qvec AS vector) LIMIT :pool)");
+            if (chunkingEnabled) {
+                // 청크 단위 벡터 arm: 문서의 최상(min-거리) 청크로 문서를 랭킹한다 → 장문 본문의 희석을 피한다.
+                // 정형 필터(filtered) 안의 문서 청크만 본다.
+                sql.append(", vec AS (")
+                        .append(" SELECT c.record_id AS id,")
+                        .append(" ROW_NUMBER() OVER (ORDER BY MIN(c.embedding <=> CAST(:qvec AS vector))) AS rnk")
+                        .append(" FROM knowledge_chunk c WHERE c.record_id IN (SELECT id FROM filtered)")
+                        .append(" GROUP BY c.record_id")
+                        .append(" ORDER BY MIN(c.embedding <=> CAST(:qvec AS vector)) LIMIT :pool)");
+            } else {
+                sql.append(", vec AS (")
+                        .append(" SELECT id, ROW_NUMBER() OVER (ORDER BY embedding <=> CAST(:qvec AS vector)) AS rnk")
+                        .append(" FROM filtered WHERE embedding IS NOT NULL")
+                        .append(" ORDER BY embedding <=> CAST(:qvec AS vector) LIMIT :pool)");
+            }
             sql.append(selectColumns())
                     .append(", COALESCE(1.0/(").append(RRF_K).append(" + kw.rnk), 0)")
                     .append(" + COALESCE(1.0/(").append(RRF_K).append(" + vec.rnk), 0) AS rrf")
@@ -165,7 +182,7 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
         String sql = "INSERT INTO " + TABLE
                 + " (domain, title, body, source_url, code_values, source_updated_at, content_hash, embedding)"
                 + " VALUES (:domain, :title, :body, :sourceUrl, CAST(:codeValues AS jsonb),"
-                + " :sourceUpdatedAt, :contentHash, CAST(:embedding AS vector))";
+                + " :sourceUpdatedAt, :contentHash, CAST(:embedding AS vector)) RETURNING id";
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("domain", record.getDomain())
                 .addValue("title", record.getTitle())
@@ -175,8 +192,27 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
                 .addValue("sourceUpdatedAt", toTimestamp(record.getSourceUpdatedAt()))
                 .addValue("contentHash", record.getContentHash())
                 .addValue("embedding", VectorLiterals.toLiteral(embedding));
-        jdbcTemplate.update(sql, params);
+        Long id = jdbcTemplate.queryForObject(sql, params, Long.class);
+        if (chunkingEnabled && id != null) {
+            saveChunks(id, record);
+        }
         return record;
+    }
+
+    /** 본문을 문장 청크로 나눠 청크별 임베딩을 knowledge_chunk 에 적재한다(청킹 모드). */
+    private void saveChunks(long recordId, KnowledgeRecord record) {
+        List<String> chunks = TextChunker.chunk(record.getTitle(), record.getBody());
+        for (int i = 0; i < chunks.size(); i++) {
+            float[] chunkEmbedding = embeddingProvider.embed(chunks.get(i));
+            jdbcTemplate.update(
+                    "INSERT INTO knowledge_chunk (record_id, chunk_index, content, embedding)"
+                            + " VALUES (:rid, :idx, :content, CAST(:embedding AS vector))",
+                    new MapSqlParameterSource()
+                            .addValue("rid", recordId)
+                            .addValue("idx", i)
+                            .addValue("content", chunks.get(i))
+                            .addValue("embedding", VectorLiterals.toLiteral(chunkEmbedding)));
+        }
     }
 
     /** 임베딩 입력 텍스트(제목 + 본문). */

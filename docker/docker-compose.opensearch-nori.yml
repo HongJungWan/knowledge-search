@@ -1,0 +1,35 @@
+# ===================================================================
+# 한국어 형태소 분석기(nori) 포함 OpenSearch (로드맵 #7).
+# 기동: docker compose -f docker/docker-compose.opensearch-nori.yml up -d --build
+# 앱: ./gradlew bootRun --args='--spring.profiles.active=postgres,localmodel,opensearch' 와 함께
+#     OPENSEARCH_TEXT_ANALYZER=nori 로 title/body 에 nori 분석기 적용.
+# 표준 이미지(docker-compose.opensearch.yml) 대체용 — 포트 9200 동일(둘 중 하나만 기동).
+# ===================================================================
+services:
+  opensearch:
+    build:
+      context: .
+      dockerfile: opensearch-nori.Dockerfile
+    image: knowledge-search-opensearch-nori:2.19.0
+    container_name: knowledge-search-opensearch
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    ports:
+      - "9200:9200"
+    volumes:
+      - knowledge-os-nori-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\"'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  knowledge-os-nori-data:

@@ -45,16 +45,20 @@ public class OpenSearchKnowledgeRecordRepositoryImpl implements KnowledgeRecordR
     private final ObjectMapper objectMapper;
     private final EmbeddingProvider embeddingProvider;
     private final int dimension;
+    /** title/body 텍스트 분석기. 기본 standard, nori 이미지에선 nori(한국어 형태소) — 로드맵 #7. */
+    private final String textAnalyzer;
 
     public OpenSearchKnowledgeRecordRepositoryImpl(
             ObjectMapper objectMapper,
             EmbeddingProvider embeddingProvider,
             @Value("${opensearch.url:http://localhost:9200}") String url,
-            @Value("${embedding.dimension:1024}") int dimension) {
+            @Value("${embedding.dimension:1024}") int dimension,
+            @Value("${opensearch.text-analyzer:standard}") String textAnalyzer) {
         this.client = RestClient.builder().baseUrl(url).build();
         this.objectMapper = objectMapper;
         this.embeddingProvider = embeddingProvider;
         this.dimension = dimension;
+        this.textAnalyzer = textAnalyzer;
     }
 
     /** 인덱스(매핑+knn 설정)를 없으면 생성한다. 이미 있으면 OpenSearch 가 400 을 주며, 무시한다. */
@@ -71,8 +75,8 @@ public class OpenSearchKnowledgeRecordRepositoryImpl implements KnowledgeRecordR
                         "properties", Map.of(
                                 "id", Map.of("type", "long"),
                                 "domain", Map.of("type", "keyword"),
-                                "title", Map.of("type", "text"),
-                                "body", Map.of("type", "text"),
+                                "title", Map.of("type", "text", "analyzer", textAnalyzer),
+                                "body", Map.of("type", "text", "analyzer", textAnalyzer),
                                 "source_url", Map.of("type", "keyword"),
                                 "code_values", Map.of("type", "object"),
                                 "source_updated_at", Map.of("type", "date"),

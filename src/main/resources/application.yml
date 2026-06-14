@@ -120,6 +120,9 @@ rerank:
 # 검색은 OpenSearch, SearchLog/배치는 Postgres 를 쓴다. (로컬: docker/docker-compose.opensearch.yml)
 opensearch:
   url: http://localhost:9200
+  # title/body 텍스트 분석기. 기본 standard. nori 이미지(docker-compose.opensearch-nori.yml)에선
+  # OPENSEARCH_TEXT_ANALYZER=nori 로 한국어 형태소 분석 적용(조사/복합어 분해 → BM25 품질↑, 로드맵 #7).
+  text-analyzer: standard
 
 # --- ACTUATOR ---
 management:

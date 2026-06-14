@@ -138,3 +138,17 @@ INTEGRATED 후보(top-10)를 Ollama LLM(EXAONE 3.5 2.4B, 한국어)으로 **리�
 - **핵심 차이**: OpenSearch **BM25**가 한국어 패러프레이즈를 Postgres LIKE/ILIKE 보다 훨씬 잘 매칭(KEYWORD 비정형 0.333→1.000). 즉 운영 검색엔진(BM25 분석기 + k-NN)이 dev pgvector 보다 강함 — 이관 가치 입증.
 - **이관 매핑 확인**: pgvector 의 정형 필터+RRF 하이브리드가 OpenSearch(term filter + BM25/kNN + RRF)로 1:1 옮겨짐. 운영에선 임베딩을 Bedrock Titan 으로, RRF 를 OpenSearch 네이티브 hybrid 파이프라인으로 교체하면 됨(코드 구조 동일).
 - 남은 #6: Bedrock Titan 임베딩(`BedrockEmbeddingProvider` 구현 완료, AWS 자격증명 시 활성) — 인프라 확보 후.
+
+## 결과 (2026-06-14 — 로드맵 #7 한국어 형태소 분석기 nori, 토큰/매칭 레벨 측정)
+OpenSearch BM25 의 한국어 분석을 `standard` → `nori`(형태소)로 교체(커스텀 이미지 `opensearch-nori.Dockerfile` + 어댑터 `opensearch.text-analyzer` 설정화). **합성 코퍼스는 이미 포화(OpenSearch INTEGRATED P@3=1.000)라 retrieval 지표로는 추가 측정 불가** → 개선을 토큰화/매칭 레벨에서 직접 측정한다.
+
+| 측정 | standard | nori |
+|---|---|---|
+| `_analyze("미정산을 정산했습니다")` | `[미정산을, 정산했습니다]` | `[미, 정산, 정산]` |
+| 본문 "정산을 마감했다" · 질의 "정산" 매칭 | **0건** | **1건** |
+
+- **결론**: standard 는 조사("을")·활용("했습니다")을 분리 못 해 surface form 토큰을 만든다 → 조사만 다른 질의를 BM25 가 놓친다. nori 는 형태소로 분해해 매칭한다. **실데이터/조사 포함 질의에서 BM25 품질이 오르는 production 개선**(이 합성 코퍼스에선 띄어쓰기가 정돈돼 표준도 동작해 P@3 1.000 유지 — 무회귀).
+- 어댑터는 `text-analyzer` 설정으로 standard/nori 선택(기본 standard). nori 이미지에서 `OPENSEARCH_TEXT_ANALYZER=nori`.
+
+## 측정 한계 & 다음
+합성 코퍼스가 **포화**(OpenSearch INTEGRATED P@3=1.000)에 도달해, 이후 기법(#7 RRF k 튜닝 등)은 이 코퍼스의 retrieval 지표로 차이를 낼 수 없다. **다음 큰 레버는 실데이터 평가셋**(운영 문서 + `search_log` 질의 로그) — 거기서 #3 청킹·리랭킹·nori·RRF 의 실운영 가치를 비로소 정량 비교할 수 있다.

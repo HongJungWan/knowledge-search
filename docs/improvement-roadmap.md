@@ -13,7 +13,7 @@
 | 4 | **리랭킹(LLM-judge) ✅완료(2026-06-14)** | 비정형 정밀도 미완(0.667) | 비정형 0.667→0.833, 전체 0.833→0.917 | 중 |
 | 5 | **평가 상시화(회귀 게이트) ✅완료(2026-06-14)** | 측정이 수동 | scripts/eval-gate.sh 임계 검사·회귀 시 비0 종료 | 소 |
 | 6 | **운영 경로(OpenSearch ✅ / Bedrock ⏳AWS)** | 현 pgvector는 개발용 | OpenSearch INTEGRATED P@3 1.000(>pgvector 0.917) | 대 |
-| 7 | RRF/FTS 튜닝 | k=60 고정, 한국어 FTS 부재 | 융합 품질 | 소~중 |
+| 7 | **FTS nori ✅ / RRF 튜닝 ⏸포화** | k=60 고정, 한국어 FTS 부재 | nori: 조사 분리로 BM25 매칭(standard 0→nori 1건). RRF k는 코퍼스 포화로 측정 불가 | 소~중 |
 
 ---
 
@@ -51,16 +51,16 @@
 - **결과(E2E, large 코퍼스)**: OpenSearch INTEGRATED **P@3 1.000**(정형 1.000·비정형 1.000) > pgvector 0.917. BM25 가 한국어 패러프레이즈를 LIKE 보다 훨씬 잘 매칭(KEYWORD 비정형 0.333→1.000). SQL RRF→OpenSearch 1:1 이관 확인.
 - **남은 부분(Bedrock)**: 임베딩 `BedrockEmbeddingProvider`(Titan v2) 구현 완료 — AWS 자격증명 확보 시 `bedrock` 프로파일로 활성(차원 1024 정렬 유지로 재인덱싱 최소). 운영 RRF 는 OpenSearch 네이티브 hybrid 파이프라인으로 교체 가능(코드 구조 동일).
 
-## 7. RRF/FTS 튜닝
-- **문제**: RRF k=60 고정, Postgres 한국어 형태소 FTS 미사용(키워드 arm은 LIKE/ILIKE).
-- **제안**: RRF k·arm 가중을 골드셋으로 튜닝. 한국어 형태소 분석기(예: mecab-ko, OpenSearch nori) 도입 시 키워드 arm 품질↑. pgvector HNSW `ef_search` 튜닝.
-- **기대효과**: 융합 품질 미세 개선.
+## 7. FTS nori ✅ 완료 / RRF 튜닝 ⏸ 보류(코퍼스 포화) (2026-06-14)
+- **수행(nori)**: OpenSearch 한국어 형태소 분석기 적용 — 커스텀 이미지(`opensearch-nori.Dockerfile`, analysis-nori) + 어댑터 `opensearch.text-analyzer`(standard/nori) 설정화. title/body 에 nori 적용.
+- **측정(토큰/매칭 레벨)**: `_analyze("미정산을 정산했습니다")` standard `[미정산을, 정산했습니다]` vs nori `[미, 정산, 정산]`. BM25: 본문 "정산을 마감했다"·질의 "정산" → standard 0건, **nori 1건**. 조사만 다른 질의를 nori 가 매칭(production 개선). 합성 코퍼스 P@3 는 포화(1.000)라 무회귀.
+- **RRF k 튜닝 보류**: OpenSearch INTEGRATED P@3=1.000 포화로 k 변경 효과를 retrieval 지표로 측정 불가. 실데이터/de-saturated 셋 확보 후 의미 있음.
 
 ---
 
 ## 결론 / 진행 상황
 정밀도 압력 재측정으로 **KS→MO 참조 구조의 실효성(정형 정밀도 1.000)이 입증**됐고, **#1 어휘 정렬 완료**로 적용 범위를 넓혀 INTEGRATED P@3 0.833→0.917·비정형 0.667→0.833까지 끌어올렸다.
 진행 결과 누적: **#1 어휘 정렬 ✅**(coverage 0.42→0.58, INTEGRATED 0.833→0.917@short corpus) + **#4 리랭킹 ✅**(장문 코퍼스 비정형 0.667→0.833, 전체 0.833→0.917) → 정형은 MO 코드 필터로 1.000, 비정형은 리랭킹으로 0.833. **#3 청킹 ☑측정완료(null)**(합성 코퍼스 한계, 장문 이질문서용 보관).
-누적 완료: **#1·#4·#5·#6(OpenSearch) ✅**, #3 ☑측정완료(null). 현재 pgvector 경로 P@3 0.917 / OpenSearch 경로 **1.000**.
-- **남은 항목**: #6 Bedrock(AWS 자격증명 대기, 코드 준비됨) · #2 라우팅(품질 무영향 지연 최적화) · #7 RRF/FTS 튜닝.
-- **보류 근거**: Bedrock=AWS 자격증명 필요. #2/#7 은 품질 영향이 작아 후순위(측정 근거). **다음 큰 레버는 실데이터 평가셋** — 합성 코퍼스의 한계가 #3에서 드러남(진짜 운영 문서/질의 로그로 #3·리랭킹의 실가치 재측정 필요).
+누적 완료: **#1·#4·#5·#6(OpenSearch)·#7(nori) ✅**, #3 ☑측정완료(null). pgvector 경로 P@3 0.917 / OpenSearch 경로 **1.000**(포화). nori 는 조사 분리로 BM25 매칭 개선(토큰 레벨 입증).
+- **남은 항목**: #6 Bedrock(AWS 자격증명 대기, 코드 준비됨) · #7 RRF k 튜닝(코퍼스 포화로 측정 불가) · #2 라우팅(품질 무영향 지연 최적화).
+- **상태**: 합성 코퍼스로 측정 가능한 고가치 항목은 전부 소진(OpenSearch INTEGRATED 포화). **다음 큰 레버는 실데이터 평가셋**(운영 문서 + `search_log` 질의 로그) — 거기서만 #3 청킹·리랭킹·nori·RRF 의 실운영 가치를 정량 비교할 수 있다. 남은 #2/#7/#6 은 저ROI 또는 AWS 차단.

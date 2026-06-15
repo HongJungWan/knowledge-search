@@ -22,9 +22,12 @@ public class CacheConfig {
     /** metadata /resolve 결과 캐시 이름 */
     public static final String METADATA_RESOLVE_CACHE = "metadataResolve";
 
+    /** metadata 스키마 카탈로그 조회 결과 캐시 이름 (list_schema) */
+    public static final String METADATA_SCHEMA_CACHE = "metadataSchema";
+
     @Bean
     public CacheManager cacheManager() {
-        CaffeineCacheManager manager = new CaffeineCacheManager(METADATA_RESOLVE_CACHE);
+        CaffeineCacheManager manager = new CaffeineCacheManager(METADATA_RESOLVE_CACHE, METADATA_SCHEMA_CACHE);
         manager.setCaffeine(Caffeine.newBuilder()
                 .maximumSize(1_000)
                 .expireAfterWrite(10, TimeUnit.MINUTES));

@@ -41,6 +41,18 @@ public interface KnowledgeRecordRepository {
         return search(domain, keyword, codeValues, limit);
     }
 
+    /**
+     * 이 어댑터가 벡터 arm(임베딩 기반 하이브리드)을 실제로 수행하는지 여부.
+     * <p>
+     * 기본값 {@code false} — H2/Redshift 어댑터는 키워드 전용으로 강등되므로 질의 임베딩이
+     * 무시된다. 응용 서비스는 이 값이 {@code false} 이면 임베딩 계산 자체를 생략해 불필요한
+     * 비용을 피한다. {@code PostgresKnowledgeRecordRepositoryImpl} 만 {@code true} 로
+     * 오버라이드해 pgvector RRF 하이브리드를 수행한다. (검색 강등은 의도된 설계 — 위반 아님)
+     */
+    default boolean supportsVectorSearch() {
+        return false;
+    }
+
     /** ID 로 단건 조회. */
     Optional<KnowledgeRecord> findById(Long id);
 

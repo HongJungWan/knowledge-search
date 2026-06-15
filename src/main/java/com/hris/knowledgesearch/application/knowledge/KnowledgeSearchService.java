@@ -2,6 +2,8 @@ package com.hris.knowledgesearch.application.knowledge;
 
 import com.hris.knowledgesearch.application.knowledge.port.MetadataResolvePort;
 import com.hris.knowledgesearch.application.knowledge.port.MetadataResolveResult;
+import com.hris.knowledgesearch.application.knowledge.port.SchemaCatalogPort;
+import com.hris.knowledgesearch.application.knowledge.port.SchemaCatalogResult;
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
@@ -38,6 +40,7 @@ public class KnowledgeSearchService {
     private final KnowledgeRecordRepository knowledgeRecordRepository;
     private final SearchLogRepository searchLogRepository;
     private final MetadataResolvePort metadataPort;
+    private final SchemaCatalogPort schemaCatalogPort;
     private final EmbeddingProvider embeddingProvider;
 
     /**
@@ -65,9 +68,11 @@ public class KnowledgeSearchService {
         Map<String, String> codeValues = mergeCodeValues(resolved, filters);
 
         // 2) 도메인 포트 검색 (하이브리드)
-        // 질의 임베딩을 계산해 5-arg 포트로 전달한다. postgres 어댑터는 RRF 하이브리드로 융합하고,
-        // H2/Redshift 어댑터는 기본 메서드가 임베딩을 무시해 키워드 전용으로 자동 강등된다.
-        float[] queryEmbedding = embeddingProvider.embed(normalized);
+        // postgres 어댑터만 벡터 arm 을 RRF 로 융합한다. 벡터 미지원 어댑터(H2/Redshift)에는
+        // 임베딩 계산 자체를 생략한다 — 어차피 무시되므로 불필요한 비용을 피한다(키워드 전용 강등).
+        float[] queryEmbedding = knowledgeRecordRepository.supportsVectorSearch()
+                ? embeddingProvider.embed(normalized)
+                : null;
         List<KnowledgeRecord> records =
                 knowledgeRecordRepository.search(domain, normalized, codeValues, queryEmbedding, effectiveLimit);
 
@@ -97,11 +102,26 @@ public class KnowledgeSearchService {
     /**
      * 검색 가능 스키마 설명 (list_schema).
      * <p>
-     * 운영 전환 시 metadata 카탈로그로 대체 예정(현재는 정적 카탈로그)(PRD §5.1).
+     * 물리 스키마의 SSOT 인 metadata-ontology 카탈로그에서 받아온다({@link SchemaCatalogPort}).
+     * metadata 비활성/실패 시 기존 정적 카탈로그로 폴백한다(검색·스키마 안내는 metadata 없이도 동작).
      */
     @Transactional(readOnly = true)
     public SchemaInfoResponse listSchema(String domain) {
         String effectiveDomain = StringUtils.hasText(domain) ? domain : "SETTLEMENT";
+        SchemaCatalogResult catalog = schemaCatalogPort.listSchema(effectiveDomain);
+        if (catalog.available() && !catalog.columns().isEmpty()) {
+            SchemaInfoResponse.SchemaInfoResponseBuilder builder = SchemaInfoResponse.builder()
+                    .domain(effectiveDomain)
+                    .source("metadata-catalog");
+            catalog.columns().forEach(c -> builder.column(SchemaInfoResponse.ColumnInfo.builder()
+                    .table(c.table()).column(c.column()).description(c.description()).build()));
+            return builder.build();
+        }
+        return staticCatalog(effectiveDomain);
+    }
+
+    /** metadata 비활성/실패 시 폴백하는 정적 카탈로그(PRD §5.1). */
+    private SchemaInfoResponse staticCatalog(String effectiveDomain) {
         return SchemaInfoResponse.builder()
                 .domain(effectiveDomain)
                 .source("static-catalog")

@@ -74,10 +74,60 @@ def generate(common, filename):
     print(f"generated {len(docs)} docs ({len(STATUSES)}x{PER_STATUS}) -> {out}")
 
 
+# ── 50/50 다중 코드차원 코퍼스 (eval) ───────────────────────────────────────────────
+# 설계 의도(docs/evaluation-50-50.md):
+# - 코드 차원 3종을 섞어 정형 필터가 단일 컬럼이 아닌 여러 컬럼을 압박하게 한다(어휘 정렬 검증).
+# - 각 문서는 정확히 한 클래스(=한 코드값)에 속한다 → relevance/recall 분모가 명확.
+# - 본문 상태 절은 쿼리 표면형을 literal 로 담지 않는 패러프레이즈 → 키워드 실패·벡터 약신호·코드 결정적.
+# - 모든 클래스가 동일한 "정산 처리 절차" 공통 단락을 공유 → 텍스트 유사로 정밀도 압력.
+# (column, code, 본문 절 — MO 가 표면형으로 이 코드를 해석할 수 있어야 함)
+EVAL_CLASSES = [
+    ("settlement_status", "PENDING",     "현재 이 건은 아직 확정되지 않아 처리 대기 상태로 남아 있다."),
+    ("settlement_status", "SETTLED",     "이 건은 절차가 모두 마무리되어 가맹점 지급까지 끝났다."),
+    ("settlement_status", "HOLD",        "이 건은 점검 사유로 지급이 일시적으로 멈춰 묶여 있다."),
+    ("settlement_status", "CANCELED",    "이 건은 거래가 무효 처리되어 정산 대상에서 빠졌다."),
+    ("settlement_cycle",  "MONTHLY",     "이 가맹점은 매월 말에 한 번 거래를 모아 지급한다."),
+    ("settlement_cycle",  "WEEKLY",      "이 가맹점은 매주 한 차례 거래를 합산해 지급한다."),
+    ("settlement_cycle",  "DAILY",       "이 가맹점은 거래가 생긴 날마다 그날 마감해 지급한다."),
+    ("contract_type",     "CONSIGNMENT", "이 가맹점은 상품을 맡아 팔고 판매분만 수수료로 정산하는 계약이다."),
+    ("contract_type",     "DIRECT_BUY",  "이 가맹점은 본사가 재고를 사들여 보유하는 방식의 계약이다."),
+    ("contract_type",     "SPECIAL_BUY", "이 가맹점은 반품 조건을 붙여 일부 품목만 매입하는 계약이다."),
+]
+PER_CLASS = 10  # 클래스당 문서 수 (= gold 의 relevantCount). 10 클래스 × 10 = 100 docs(비포화).
+
+
+def generate_eval(filename):
+    docs = []
+    idx = 0
+    for column, code, clause in EVAL_CLASSES:
+        for i in range(PER_CLASS):
+            idx += 1
+            m = MERCHANTS[idx % len(MERCHANTS)]
+            grade = GRADES[idx % len(GRADES)]
+            amt = 100000 + idx * 1373
+            mm = (idx % 12) + 1
+            dd = (idx % 28) + 1
+            body = SHORT_COMMON.format(m=m, amt=amt, mm=mm, dd=dd, grade=grade, idx=idx) + clause
+            docs.append({
+                "domain": "settlement",
+                "title": f"정산 처리 절차 안내 #{idx}",
+                "body": body,
+                "sourceUrl": f"https://wiki.internal/settlement/case/{idx}",
+                "codeValues": {column: code},
+            })
+    out = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "src", "main",
+                                        "resources", "sample", filename))
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(docs, f, ensure_ascii=False, indent=2)
+    print(f"generated {len(docs)} docs ({len(EVAL_CLASSES)}x{PER_CLASS}, 3 code dims) -> {out}")
+
+
 def main():
     # large = 짧은 공통(정밀도 압력·#1 측정), long = 장문 공통(청킹 #3 측정).
     generate(SHORT_COMMON, "settlement-source-large.json")
     generate(LONG_COMMON, "settlement-source-long.json")
+    # eval = 50/50 다중 코드차원(어휘 정렬·MO 기여 측정).
+    generate_eval("settlement-source-eval.json")
 
 
 if __name__ == "__main__":

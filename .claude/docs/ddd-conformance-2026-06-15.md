@@ -15,7 +15,7 @@
 | # | 원칙 | 상태 | 강제 | 증거 |
 |---|---|---|---|---|
 |2.1|응용=흐름제어 국한|✅|수동|서비스는 포트 호출·DTO 매핑·트랜잭션만|
-|2.2|응용에 비즈니스/검증 침투 금지|✅|수동|B1: `DictionaryImportService`의 CSV파싱/검증/기본값 → ACL+도메인 위임 완료. **예외(문서화)**: 평가 서비스(`Hybrid/IntegratedEvaluationService`(ks)·`RecallEvaluationService`(mo))의 판정/해석/매칭 휴리스틱은 **SUPPORTING 분석 하네스** tier로 잔존 — 시스템 동작을 좌우하는 도메인 정책이 아니라 사람이 읽는 분석 결과 산출이며, 도메인 추출 시 평가 DTO(ArmReport 등)를 도메인으로 들여 `DOMAIN_PURITY` 위반 또는 원시값 다인자 시그니처를 강요 → "최소·비추상화" 원칙상 보류. 운영 게이트로 승격되면 그때 도메인 서비스로 추출.|
+|2.2|응용에 비즈니스/검증 침투 금지|✅|AU `DOMAIN_PURITY`|B1: `DictionaryImportService` CSV파싱/검증/기본값 → ACL+도메인 위임. B2: 평가 판정/해석/매칭 규칙도 도메인 서비스로 추출 완료 — ks `SearchQualityGate`·`RetrievalInterpretation`(+값객체 `StratumScore`/`ArmScore`), mo `MappingComparator`. 응용 서비스는 DTO→원시값 매핑·요약 문자열·집계 루프 등 흐름 제어만. 도메인 서비스는 원시값/도메인 값객체만 입력받아 `DOMAIN_PURITY` 통과(평가 DTO 미참조).|
 |2.3|Command 객체 입력|✅|AU `REQUEST_INPUT_IS_COMMAND`|`@RequestBody`는 `*Command`(ks) / `*Request` 잔존 금지(mo)|
 
 ## 3. Aggregate & Lifecycle
@@ -40,6 +40,6 @@
 
 ## 요약
 - **CI(ArchUnit) 강제 항목**: 16개(Track A 로 5개 추가 — Spring 스테레오타입·setter·비결정성·도메인서비스 무상태·엔티티 raw String).
-- **코드 변경 트랙**: A(ArchUnit 확대)·B1(DictionaryImport ACL)·C(행단위 트랜잭션)·D(OHS 마커)·E(Priority VO). 모두 `./gradlew clean build` GREEN.
-- **문서화된 의도적 예외**: (2.2) 평가 하네스의 분석 휴리스틱 — SUPPORTING tier, 운영 게이트화 시 추출. (3.6) 감사로그/벌크 패턴. (4.1) ks IDENTITY PK Long. (제외) 도메인 이벤트.
+- **코드 변경 트랙**: A(ArchUnit 확대)·B1(DictionaryImport ACL)·B2(평가 규칙 도메인 서비스 추출)·C(행단위 트랜잭션)·D(OHS 마커)·E(Priority VO). 모두 `./gradlew clean build` GREEN.
+- **문서화된 의도적 예외**: (3.6) 감사로그/벌크 트랜잭션 패턴. (4.1) ks IDENTITY PK Long(JPA converter 제약). (제외) 도메인 이벤트(사용자 제외).
 - **결론**: 23개 적용 항목 전부 충족(✅) — 위반 0, 일부는 근거와 함께 문서화된 예외.

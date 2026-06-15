@@ -66,3 +66,7 @@
 누적 완료: **#1·#4·#5·#6(OpenSearch)·#7(nori) ✅**, #3 ☑측정완료(null). pgvector 경로 P@3 0.917 / OpenSearch 경로 **1.000**(포화). nori 는 조사 분리로 BM25 매칭 개선(토큰 레벨 입증).
 - **남은 항목**: #6 Bedrock(AWS 자격증명 대기, 코드 준비됨) · #7 RRF k 튜닝(코퍼스 포화로 측정 불가) · #2 라우팅(품질 무영향 지연 최적화).
 - **상태**: 합성 코퍼스로 측정 가능한 고가치 항목은 전부 소진(OpenSearch INTEGRATED 포화). **다음 큰 레버는 실데이터 평가셋**(운영 문서 + `search_log` 질의 로그) — 거기서만 #3 청킹·리랭킹·nori·RRF 의 실운영 가치를 정량 비교할 수 있다. 남은 #2/#7/#6 은 저ROI 또는 AWS 차단.
+
+## Value Object 전면 적용 (2026-06-15)
+- **값 객체 ✅**: `KnowledgeRecord`(KnowledgeDomain·Title·Body·SourceUrl·CodeValues·ContentHash)·`SearchLog`(RawQuery·NormalizedQuery·Latency·HitCount·JudgedScore)를 `@Embeddable` 값 객체로 전면 포장. `@AttributeOverride` 로 컬럼명 유지, QueryDSL 은 `.value`(StringPath), 외부 JSON 와이어 포맷 불변(경계 `.value()` 언랩). VO 는 final 필드 클래스(record 는 QueryDSL 5.1.0 APT 의 embeddable 미지원으로 배제).
+- **타입드 ID(PK) 미적용 — 의도적**: `KnowledgeRecord`/`SearchLog` 의 PK 는 DB `@GeneratedValue(IDENTITY)` 생성 키다. JPA 는 IDENTITY 생성 식별자에 `AttributeConverter`(타입드 ID 래핑) 적용을 지원하지 않는다(`JdbcTypeRecommendationException`). 또한 두 애그리거트는 **교차 참조가 없어** 타입드 ID 의 타입 안전 이득도 낮다 → `Long` PK 유지. (metadata-ontology 는 앱이 UUID 를 직접 배정하고 교차 참조가 있어 타입드 ID 가 적용 가능·유효 — 그쪽에서 적용.)

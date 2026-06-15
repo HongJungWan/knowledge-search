@@ -7,6 +7,7 @@ import com.hris.knowledgesearch.application.evaluation.dto.response.HybridEvalua
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.domain.knowledge.SearchQualityGate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ public class HybridEvaluationService {
 
     private final KnowledgeRecordRepository knowledgeRecordRepository;
     private final EmbeddingProvider embeddingProvider;
+    private final SearchQualityGate searchQualityGate;
 
     /**
      * 정답셋 전체를 평가한다.
@@ -87,11 +89,13 @@ public class HybridEvaluationService {
     }
 
     private GateVerdict verdict(ArmReport keyword, ArmReport hybrid) {
-        // 비정형 재현율 향상(의미 기여) + 정형 무회귀(정밀도 보존, 작은 오차 허용).
-        boolean unstructuredImproved = hybrid.unstructured().recallAtK() > keyword.unstructured().recallAtK();
-        boolean structuredNotRegressed =
-                hybrid.structured().recallAtK() >= keyword.structured().recallAtK() - 1e-9;
-        boolean pass = unstructuredImproved && structuredNotRegressed;
+        // 비정형 재현율 향상(의미 기여) + 정형 무회귀(정밀도 보존, 작은 오차 허용) — 판정 규칙은 도메인 서비스.
+        SearchQualityGate.Verdict v = searchQualityGate.evaluate(
+                keyword.unstructured().recallAtK(), hybrid.unstructured().recallAtK(),
+                keyword.structured().recallAtK(), hybrid.structured().recallAtK());
+        boolean unstructuredImproved = v.unstructuredImproved();
+        boolean structuredNotRegressed = v.structuredNotRegressed();
+        boolean pass = v.pass();
         String summary = String.format(
                 "비정형 recall@k %.4f→%.4f(%s), 정형 recall@k %.4f→%.4f(%s) ⇒ %s",
                 keyword.unstructured().recallAtK(), hybrid.unstructured().recallAtK(),

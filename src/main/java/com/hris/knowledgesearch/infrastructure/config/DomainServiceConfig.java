@@ -1,6 +1,8 @@
 package com.hris.knowledgesearch.infrastructure.config;
 
 import com.hris.knowledgesearch.domain.knowledge.QueryRouter;
+import com.hris.knowledgesearch.domain.knowledge.RetrievalInterpretation;
+import com.hris.knowledgesearch.domain.knowledge.SearchQualityGate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,5 +18,15 @@ public class DomainServiceConfig {
     @Bean
     public QueryRouter queryRouter() {
         return new QueryRouter();
+    }
+
+    @Bean
+    public SearchQualityGate searchQualityGate() {
+        return new SearchQualityGate();
+    }
+
+    @Bean
+    public RetrievalInterpretation retrievalInterpretation() {
+        return new RetrievalInterpretation();
     }
 }

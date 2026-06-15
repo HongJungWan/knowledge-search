@@ -6,10 +6,13 @@ import com.hris.knowledgesearch.application.evaluation.dto.response.IntegratedEv
 import com.hris.knowledgesearch.application.evaluation.dto.response.IntegratedEvaluationReportResponse.StratumMetrics;
 import com.hris.knowledgesearch.application.knowledge.port.MetadataResolvePort;
 import com.hris.knowledgesearch.application.knowledge.port.MetadataResolveResult;
+import com.hris.knowledgesearch.domain.knowledge.ArmScore;
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
 import com.hris.knowledgesearch.domain.knowledge.Reranker;
+import com.hris.knowledgesearch.domain.knowledge.RetrievalInterpretation;
+import com.hris.knowledgesearch.domain.knowledge.StratumScore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +45,7 @@ public class IntegratedEvaluationService {
     private final EmbeddingProvider embeddingProvider;
     private final MetadataResolvePort metadataPort;
     private final Reranker reranker;
+    private final RetrievalInterpretation retrievalInterpretation;
 
     public IntegratedEvaluationReportResponse evaluate(int k, int limit) {
         return evaluate(k, limit, GOLD_RESOURCE);
@@ -163,21 +167,15 @@ public class IntegratedEvaluationService {
     private Interpretation interpret(ArmReport keyword, ArmReport meta, ArmReport vector, ArmReport integrated,
                                      ArmReport reranked) {
         // 정밀도 압력 실험의 핵심은 precision@k(코드 필터가 텍스트로 못 가르는 상태를 정밀히 거름).
-        // recall 향상도 함께 인정한다(둘 중 하나라도 개선이면 기여로 본다).
-        boolean metaHelpsStructured =
-                gt(meta.structured().precisionAtK(), keyword.structured().precisionAtK())
-                        || gt(meta.structured().recallAtK(), keyword.structured().recallAtK());
-        boolean vectorHelpsUnstructured =
-                gt(vector.unstructured().recallAtK(), keyword.unstructured().recallAtK())
-                        || gt(vector.unstructured().precisionAtK(), keyword.unstructured().precisionAtK());
-        boolean metadataAddsOverVector =
-                gt(integrated.overall().precisionAtK(), vector.overall().precisionAtK())
-                        || gt(integrated.overall().recallAtK(), vector.overall().recallAtK());
-        boolean rerankImprovesUnstructured = gt(reranked.unstructured().precisionAtK(),
-                integrated.unstructured().precisionAtK());
-        double bestPrecision = Math.max(Math.max(keyword.overall().precisionAtK(), meta.overall().precisionAtK()),
-                Math.max(vector.overall().precisionAtK(), integrated.overall().precisionAtK()));
-        boolean integratedBest = reranked.overall().precisionAtK() >= bestPrecision - 1e-9;
+        // recall 향상도 함께 인정한다(둘 중 하나라도 개선이면 기여로 본다). 해석 규칙은 도메인 서비스.
+        RetrievalInterpretation.Result r = retrievalInterpretation.interpret(
+                toArmScore(keyword), toArmScore(meta), toArmScore(vector),
+                toArmScore(integrated), toArmScore(reranked));
+        boolean metaHelpsStructured = r.metadataHelpsStructured();
+        boolean vectorHelpsUnstructured = r.vectorHelpsUnstructured();
+        boolean metadataAddsOverVector = r.metadataAddsOverVector();
+        boolean rerankImprovesUnstructured = r.rerankImprovesUnstructured();
+        boolean integratedBest = r.integratedBest();
         String summary = String.format(
                 "정형 precision@k KEYWORD %.4f→META %.4f(%s) · 비정형 recall@k KEYWORD %.4f→VECTOR %.4f(%s) · "
                         + "전체 precision@k VECTOR %.4f→INTEGRATED %.4f(MO 추가기여 %s) · "
@@ -194,8 +192,12 @@ public class IntegratedEvaluationService {
                 metadataAddsOverVector, rerankImprovesUnstructured, integratedBest, summary);
     }
 
-    private boolean gt(double a, double b) {
-        return a > b + 1e-9;
+    /** 응용 응답 DTO(ArmReport)를 도메인 값 객체(ArmScore)로 평면화한다 — 도메인 서비스 입력. */
+    private ArmScore toArmScore(ArmReport report) {
+        return new ArmScore(
+                new StratumScore(report.overall().precisionAtK(), report.overall().recallAtK()),
+                new StratumScore(report.structured().precisionAtK(), report.structured().recallAtK()),
+                new StratumScore(report.unstructured().precisionAtK(), report.unstructured().recallAtK()));
     }
 
     private List<GoldDocQuery> loadGold(String resource) {

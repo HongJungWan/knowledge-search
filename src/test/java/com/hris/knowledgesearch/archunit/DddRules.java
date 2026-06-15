@@ -6,6 +6,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.hris.knowledgesearch.shared.ddd.AggregateInternal;
 import com.hris.knowledgesearch.shared.ddd.AggregateRoot;
+import com.hris.knowledgesearch.shared.ddd.DomainService;
 import com.hris.knowledgesearch.shared.ddd.Subdomain;
 import com.hris.knowledgesearch.shared.ddd.SubdomainType;
 import com.hris.knowledgesearch.shared.ddd.ValueObject;
@@ -71,6 +72,24 @@ public final class DddRules {
             .areDeclaredInClassesThat().areAnnotatedWith(ValueObject.class)
             .should().beFinal()
             .as("[DDD_VO_IMMUTABLE] 값 객체는 불변(final 필드)").allowEmptyShould(false);
+
+    /** 도메인 서비스 무상태: @DomainService 의 인스턴스 필드는 final(주입 의존성 외 가변 상태 금지). */
+    public static final ArchRule DOMAIN_SERVICE_STATELESS = fields().that()
+            .areDeclaredInClassesThat().areAnnotatedWith(DomainService.class)
+            .and().areNotStatic()
+            .should().beFinal()
+            .as("[DDD_DOMAIN_SERVICE_STATELESS] 도메인 서비스는 무상태(인스턴스 필드는 final)")
+            .allowEmptyShould(true);
+
+    /** 도메인 서비스 순수성: @DomainService 는 Spring 스테레오타입을 갖지 않는다(빈 등록은 DomainServiceConfig). */
+    public static final ArchRule DOMAIN_NO_SPRING_STEREOTYPES = classes().that()
+            .areAnnotatedWith(DomainService.class)
+            .should().notBeAnnotatedWith(org.springframework.stereotype.Service.class)
+            .andShould().notBeAnnotatedWith(org.springframework.stereotype.Component.class)
+            .andShould().notBeAnnotatedWith(org.springframework.stereotype.Repository.class)
+            .andShould().notBeAnnotatedWith(org.springframework.context.annotation.Configuration.class)
+            .as("[DDD_DOMAIN_NO_SPRING_STEREOTYPES] 도메인 서비스에 Spring 스테레오타입 금지")
+            .allowEmptyShould(false);
 
     /** 필드 주입 금지(생성자 주입). */
     public static final ArchRule NO_FIELD_INJECTION = GeneralCodingRules.NO_CLASSES_SHOULD_USE_FIELD_INJECTION

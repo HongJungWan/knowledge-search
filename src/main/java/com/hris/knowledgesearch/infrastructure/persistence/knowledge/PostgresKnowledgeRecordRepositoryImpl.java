@@ -75,6 +75,11 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
     }
 
     @Override
+    public boolean supportsVectorSearch() {
+        return true;
+    }
+
+    @Override
     public List<KnowledgeRecord> search(String domain, String keyword, Map<String, String> codeValues, int limit) {
         return search(domain, keyword, codeValues, null, limit);
     }

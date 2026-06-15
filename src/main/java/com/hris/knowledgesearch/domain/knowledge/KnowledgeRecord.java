@@ -1,6 +1,11 @@
 package com.hris.knowledgesearch.domain.knowledge;
 
+import com.hris.knowledgesearch.domain.knowledge.vo.Body;
+import com.hris.knowledgesearch.domain.knowledge.vo.CodeValues;
+import com.hris.knowledgesearch.domain.knowledge.vo.ContentHash;
 import com.hris.knowledgesearch.domain.knowledge.vo.KnowledgeDomain;
+import com.hris.knowledgesearch.domain.knowledge.vo.SourceUrl;
+import com.hris.knowledgesearch.domain.knowledge.vo.Title;
 import com.hris.knowledgesearch.global.common.BaseEntity;
 import com.hris.knowledgesearch.shared.ddd.AggregateRoot;
 import com.hris.knowledgesearch.shared.ddd.Subdomain;
@@ -13,7 +18,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -64,17 +68,19 @@ public class KnowledgeRecord extends BaseEntity {
     private KnowledgeDomain domain;
 
     /** 제목 */
-    @Column(name = "title", nullable = false, length = 500)
-    private String title;
+    @Embedded
+    @AttributeOverride(name = "value", column = @Column(name = "title", nullable = false, length = 500))
+    private Title title;
 
-    /** 본문 (원문) */
-    @Lob
-    @Column(name = "body", nullable = false)
-    private String body;
+    /** 본문 (원문, CLOB) */
+    @Embedded
+    @AttributeOverride(name = "value", column = @Column(name = "body", nullable = false))
+    private Body body;
 
     /** 출처 링크/식별자 (출처가 있으면 응답에 항상 붙인다, PRD §5.3/§8) */
-    @Column(name = "source_url", length = 1000)
-    private String sourceUrl;
+    @Embedded
+    @AttributeOverride(name = "value", column = @Column(name = "source_url", length = 1000))
+    private SourceUrl sourceUrl;
 
     /**
      * 코드값 묶음.
@@ -82,20 +88,18 @@ public class KnowledgeRecord extends BaseEntity {
      * 운영 Redshift 에서는 반정형 타입 {@code SUPER} 컬럼이다(PRD §4.3). H2 에서는 JSON 텍스트로 보관한다.
      * 예: {@code {"settlement_status":"PENDING"}}
      */
-    @Column(name = "code_values", length = 2000)
-    private String codeValues;
+    @Embedded
+    @AttributeOverride(name = "value", column = @Column(name = "code_values", length = 2000))
+    private CodeValues codeValues;
 
     /** 소스 기준 콘텐츠 최종 수정 시각 (랭킹의 최신순 가중에 사용, PRD §6) */
     @Column(name = "source_updated_at")
     private Instant sourceUpdatedAt;
 
     /** 콘텐츠 해시 (SHA-256). 중복 제거(insert-or-skip)에 사용한다(PRD §4.3/§7). */
-    @Column(name = "content_hash", nullable = false, length = 64)
-    private String contentHash;
-
-    /** 콘텐츠 해시 형식(소문자/대문자 무관 64자리 16진수) 검증용. */
-    private static final java.util.regex.Pattern CONTENT_HASH_PATTERN =
-            java.util.regex.Pattern.compile("^[0-9a-fA-F]{64}$");
+    @Embedded
+    @AttributeOverride(name = "value", column = @Column(name = "content_hash", nullable = false, length = 64))
+    private ContentHash contentHash;
 
     /**
      * 적재(ETL/배치) 경로용 팩토리. 도메인 불변식을 생성 시점에 강제한다.
@@ -107,23 +111,14 @@ public class KnowledgeRecord extends BaseEntity {
      */
     public static KnowledgeRecord forIngestion(String domain, String title, String body, String sourceUrl,
                                                String codeValues, Instant sourceUpdatedAt, String contentHash) {
-        if (title == null || title.isBlank()) {
-            throw new IllegalArgumentException("title 은 비어있을 수 없습니다");
-        }
-        if (body == null || body.isBlank()) {
-            throw new IllegalArgumentException("body 는 비어있을 수 없습니다");
-        }
-        if (contentHash == null || !CONTENT_HASH_PATTERN.matcher(contentHash).matches()) {
-            throw new IllegalArgumentException("contentHash 는 64자리 16진 SHA-256 이어야 합니다: " + contentHash);
-        }
         return KnowledgeRecord.builder()
                 .domain(new KnowledgeDomain(domain))
-                .title(title)
-                .body(body)
-                .sourceUrl(sourceUrl)
-                .codeValues(codeValues)
+                .title(new Title(title))
+                .body(new Body(body))
+                .sourceUrl(sourceUrl == null ? null : new SourceUrl(sourceUrl))
+                .codeValues(codeValues == null ? null : new CodeValues(codeValues))
                 .sourceUpdatedAt(sourceUpdatedAt)
-                .contentHash(contentHash)
+                .contentHash(new ContentHash(contentHash))
                 .build();
     }
 
@@ -139,14 +134,11 @@ public class KnowledgeRecord extends BaseEntity {
      * 의미는 동일하다(여기선 JSON 텍스트 기준).
      */
     public boolean hasCodeValue(String key, String value) {
-        if (codeValues == null || key == null || value == null) {
-            return false;
-        }
-        return codeValues.contains("\"" + key + "\":\"" + value + "\"");
+        return codeValues != null && codeValues.containsPair(key, value);
     }
 
     /** 콘텐츠 해시가 같은(=동일 내용) 레코드인지. 적재 단계 중복 판정에 쓴다. */
     public boolean hasSameContentAs(String otherContentHash) {
-        return contentHash != null && contentHash.equals(otherContentHash);
+        return contentHash != null && contentHash.value().equals(otherContentHash);
     }
 }

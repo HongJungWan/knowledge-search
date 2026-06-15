@@ -46,10 +46,11 @@ public record GoldDocQuery(
             String key = expectedCode.substring(0, eq).trim();
             String value = expectedCode.substring(eq + 1).trim();
             // code_values 직렬화 형식(Postgres jsonb::text 는 콜론 뒤 공백 삽입)에 무관하게 판정한다.
-            String json = record.getCodeValues() == null ? "" : record.getCodeValues().replaceAll("\\s+", "");
+            String raw = record.getCodeValues() == null ? null : record.getCodeValues().value();
+            String json = raw == null ? "" : raw.replaceAll("\\s+", "");
             return json.contains("\"" + key + "\":\"" + value + "\"");
         }
-        return isRelevant(record.getTitle());
+        return isRelevant(record.getTitle().value());
     }
 
     /** 제목 부분문자열 포함 여부(제목 모드). */

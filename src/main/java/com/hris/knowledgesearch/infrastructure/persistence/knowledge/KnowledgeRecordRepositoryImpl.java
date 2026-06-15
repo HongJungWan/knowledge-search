@@ -67,7 +67,7 @@ public class KnowledgeRecordRepositoryImpl implements KnowledgeRecordRepository 
                 if (token.isBlank() || isPeriodToken(token)) {
                     continue; // 기간 정규화 토큰(YYYY-MM-DD~YYYY-MM-DD)은 키워드에서 제외
                 }
-                keywordMatch.or(RECORD.title.containsIgnoreCase(token).or(RECORD.body.contains(token)));
+                keywordMatch.or(RECORD.title.value.containsIgnoreCase(token).or(RECORD.body.value.contains(token)));
             }
             if (keywordMatch.hasValue()) {
                 match.or(keywordMatch);
@@ -128,7 +128,7 @@ public class KnowledgeRecordRepositoryImpl implements KnowledgeRecordRepository 
             if (StringUtils.hasText(k) && StringUtils.hasText(v)) {
                 requireSafeCodeToken(k);
                 requireSafeCodeToken(v);
-                codeMatch.and(RECORD.codeValues.contains("\"" + k + "\":\"" + v + "\""));
+                codeMatch.and(RECORD.codeValues.value.contains("\"" + k + "\":\"" + v + "\""));
             }
         });
         return codeMatch;
@@ -153,16 +153,16 @@ public class KnowledgeRecordRepositoryImpl implements KnowledgeRecordRepository 
         NumberExpression<Integer> score;
         if (hasKeyword && hasCode) {
             score = caseBuilder
-                    .when(RECORD.title.equalsIgnoreCase(keyword)).then(3)
+                    .when(RECORD.title.value.equalsIgnoreCase(keyword)).then(3)
                     .when(codeMatch).then(2)
-                    .when(RECORD.title.containsIgnoreCase(keyword)
-                            .or(RECORD.body.contains(keyword))).then(1)  // body 는 CLOB → lower() 불가
+                    .when(RECORD.title.value.containsIgnoreCase(keyword)
+                            .or(RECORD.body.value.contains(keyword))).then(1)  // body 는 CLOB → lower() 불가
                     .otherwise(0);
         } else if (hasKeyword) {
             score = caseBuilder
-                    .when(RECORD.title.equalsIgnoreCase(keyword)).then(3)
-                    .when(RECORD.title.containsIgnoreCase(keyword)
-                            .or(RECORD.body.contains(keyword))).then(1)
+                    .when(RECORD.title.value.equalsIgnoreCase(keyword)).then(3)
+                    .when(RECORD.title.value.containsIgnoreCase(keyword)
+                            .or(RECORD.body.value.contains(keyword))).then(1)
                     .otherwise(0);
         } else if (hasCode) {
             score = caseBuilder.when(codeMatch).then(2).otherwise(0);

@@ -90,7 +90,8 @@ public class LlmJudgeReranker implements Reranker {
         for (int i = 0; i < candidates.size(); i++) {
             KnowledgeRecord r = candidates.get(i);
             sb.append('[').append(i + 1).append("] ")
-                    .append(safe(r.getTitle())).append(" | ").append(snippet(r.getBody())).append('\n');
+                    .append(safe(r.getTitle() == null ? null : r.getTitle().value())).append(" | ")
+                    .append(snippet(r.getBody() == null ? null : r.getBody().value())).append('\n');
         }
         sb.append("\n답(번호 순서):");
         return sb.toString();

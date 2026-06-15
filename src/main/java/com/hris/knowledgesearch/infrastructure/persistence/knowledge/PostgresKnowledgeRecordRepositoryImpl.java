@@ -3,7 +3,12 @@ package com.hris.knowledgesearch.infrastructure.persistence.knowledge;
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.domain.knowledge.vo.Body;
+import com.hris.knowledgesearch.domain.knowledge.vo.CodeValues;
+import com.hris.knowledgesearch.domain.knowledge.vo.ContentHash;
 import com.hris.knowledgesearch.domain.knowledge.vo.KnowledgeDomain;
+import com.hris.knowledgesearch.domain.knowledge.vo.SourceUrl;
+import com.hris.knowledgesearch.domain.knowledge.vo.Title;
 import com.hris.knowledgesearch.infrastructure.embedding.TextChunker;
 import com.hris.knowledgesearch.infrastructure.embedding.VectorLiterals;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,12 +59,12 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
     private static final RowMapper<KnowledgeRecord> RECORD_MAPPER = (rs, rowNum) -> KnowledgeRecord.builder()
             .id(rs.getLong("id"))
             .domain(new KnowledgeDomain(rs.getString("domain")))
-            .title(rs.getString("title"))
-            .body(rs.getString("body"))
-            .sourceUrl(rs.getString("source_url"))
-            .codeValues(rs.getString("code_values"))
+            .title(new Title(rs.getString("title")))
+            .body(new Body(rs.getString("body")))
+            .sourceUrl(rs.getString("source_url") == null ? null : new SourceUrl(rs.getString("source_url")))
+            .codeValues(rs.getString("code_values") == null ? null : new CodeValues(rs.getString("code_values")))
             .sourceUpdatedAt(toInstant(rs.getTimestamp("source_updated_at")))
-            .contentHash(rs.getString("content_hash"))
+            .contentHash(new ContentHash(rs.getString("content_hash")))
             .build();
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -191,12 +196,12 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
                 + " :sourceUpdatedAt, :contentHash, CAST(:embedding AS vector)) RETURNING id";
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("domain", record.getDomain().value())
-                .addValue("title", record.getTitle())
-                .addValue("body", record.getBody())
-                .addValue("sourceUrl", record.getSourceUrl())
-                .addValue("codeValues", record.getCodeValues())
+                .addValue("title", record.getTitle().value())
+                .addValue("body", record.getBody().value())
+                .addValue("sourceUrl", record.getSourceUrl() == null ? null : record.getSourceUrl().value())
+                .addValue("codeValues", record.getCodeValues() == null ? null : record.getCodeValues().value())
                 .addValue("sourceUpdatedAt", toTimestamp(record.getSourceUpdatedAt()))
-                .addValue("contentHash", record.getContentHash())
+                .addValue("contentHash", record.getContentHash().value())
                 .addValue("embedding", VectorLiterals.toLiteral(embedding));
         Long id = jdbcTemplate.queryForObject(sql, params, Long.class);
         if (chunkingEnabled && id != null) {
@@ -207,7 +212,7 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
 
     /** 본문을 문장 청크로 나눠 청크별 임베딩을 knowledge_chunk 에 적재한다(청킹 모드). */
     private void saveChunks(long recordId, KnowledgeRecord record) {
-        List<String> chunks = TextChunker.chunk(record.getTitle(), record.getBody());
+        List<String> chunks = TextChunker.chunk(record.getTitle().value(), record.getBody().value());
         for (int i = 0; i < chunks.size(); i++) {
             float[] chunkEmbedding = embeddingProvider.embed(chunks.get(i));
             jdbcTemplate.update(
@@ -223,8 +228,8 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
 
     /** 임베딩 입력 텍스트(제목 + 본문). */
     private static String embedText(KnowledgeRecord record) {
-        String title = record.getTitle() == null ? "" : record.getTitle();
-        String body = record.getBody() == null ? "" : record.getBody();
+        String title = record.getTitle() == null ? "" : record.getTitle().value();
+        String body = record.getBody() == null ? "" : record.getBody().value();
         return title + "\n" + body;
     }
 

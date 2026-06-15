@@ -45,11 +45,11 @@ public class KnowledgeDetailResponse {
         return KnowledgeDetailResponse.builder()
                 .id(r.getId())
                 .domain(r.getDomain().value())
-                .title(r.getTitle())
-                .body(r.getBody())
-                .sourceUrl(r.getSourceUrl())
-                .codeValues(r.getCodeValues())
-                .contentHash(r.getContentHash())
+                .title(r.getTitle().value())
+                .body(r.getBody().value())
+                .sourceUrl(r.getSourceUrl() == null ? null : r.getSourceUrl().value())
+                .codeValues(r.getCodeValues() == null ? null : r.getCodeValues().value())
+                .contentHash(r.getContentHash().value())
                 .sourceUpdatedAt(r.getSourceUpdatedAt())
                 .build();
     }

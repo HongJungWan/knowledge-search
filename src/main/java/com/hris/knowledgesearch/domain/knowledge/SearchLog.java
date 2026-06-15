@@ -1,10 +1,17 @@
 package com.hris.knowledgesearch.domain.knowledge;
 
+import com.hris.knowledgesearch.domain.knowledge.vo.HitCount;
+import com.hris.knowledgesearch.domain.knowledge.vo.JudgedScore;
+import com.hris.knowledgesearch.domain.knowledge.vo.Latency;
+import com.hris.knowledgesearch.domain.knowledge.vo.NormalizedQuery;
+import com.hris.knowledgesearch.domain.knowledge.vo.RawQuery;
 import com.hris.knowledgesearch.global.common.BaseEntity;
 import com.hris.knowledgesearch.shared.ddd.AggregateRoot;
 import com.hris.knowledgesearch.shared.ddd.Subdomain;
 import com.hris.knowledgesearch.shared.ddd.SubdomainType;
+import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -42,12 +49,14 @@ public class SearchLog extends BaseEntity {
     private Long id;
 
     /** 원본 질의 */
-    @Column(name = "query_raw", length = 2000)
-    private String queryRaw;
+    @Embedded
+    @AttributeOverride(name = "value", column = @Column(name = "query_raw", length = 2000))
+    private RawQuery queryRaw;
 
     /** 정규화된 질의 (metadata /resolve 의 normalizedQuery) */
-    @Column(name = "query_normalized", length = 2000)
-    private String queryNormalized;
+    @Embedded
+    @AttributeOverride(name = "value", column = @Column(name = "query_normalized", length = 2000))
+    private NormalizedQuery queryNormalized;
 
     /** 호출된 MCP 도구 (SEARCH_KNOWLEDGE / GET_RECORD — list_schema 는 현재 미기록) */
     @Enumerated(EnumType.STRING)
@@ -55,16 +64,19 @@ public class SearchLog extends BaseEntity {
     private ToolName tool;
 
     /** 지연 시간 (ms) */
-    @Column(name = "latency_ms")
-    private Long latencyMs;
+    @Embedded
+    @AttributeOverride(name = "millis", column = @Column(name = "latency_ms"))
+    private Latency latencyMs;
 
     /** 적중 레코드 수 */
-    @Column(name = "hit_count")
-    private Integer hitCount;
+    @Embedded
+    @AttributeOverride(name = "count", column = @Column(name = "hit_count"))
+    private HitCount hitCount;
 
     /** 정성 평가 점수 (0~10, 미평가 시 null) */
-    @Column(name = "judged_score")
-    private Integer judgedScore;
+    @Embedded
+    @AttributeOverride(name = "value", column = @Column(name = "judged_score"))
+    private JudgedScore judgedScore;
 
     /**
      * 검색 호출 로그 생성 팩토리. 도메인 불변식을 생성 시점에 강제한다.
@@ -75,27 +87,18 @@ public class SearchLog extends BaseEntity {
      */
     public static SearchLog record(String queryRaw, String queryNormalized, ToolName tool,
                                    long latencyMs, int hitCount) {
-        if (queryRaw == null || queryRaw.isBlank()) {
-            throw new IllegalArgumentException("queryRaw 는 비어있을 수 없습니다");
-        }
-        if (latencyMs < 0) {
-            throw new IllegalArgumentException("latencyMs 는 0 이상이어야 합니다: " + latencyMs);
-        }
-        if (hitCount < 0) {
-            throw new IllegalArgumentException("hitCount 는 0 이상이어야 합니다: " + hitCount);
-        }
         return SearchLog.builder()
-                .queryRaw(queryRaw)
-                .queryNormalized(queryNormalized)
+                .queryRaw(new RawQuery(queryRaw))
+                .queryNormalized(queryNormalized == null ? null : new NormalizedQuery(queryNormalized))
                 .tool(tool)
-                .latencyMs(latencyMs)
-                .hitCount(hitCount)
+                .latencyMs(new Latency(latencyMs))
+                .hitCount(new HitCount(hitCount))
                 .build();
     }
 
     /** 적중(검색 결과 1건 이상)했는지. */
     public boolean isHit() {
-        return hitCount != null && hitCount > 0;
+        return hitCount != null && hitCount.isHit();
     }
 
     /**
@@ -104,6 +107,6 @@ public class SearchLog extends BaseEntity {
      * 적중이 없거나 평가 점수가 임계 미만이면, 매핑/동의어 보강 대상으로 본다.
      */
     public boolean needsDictionaryReinforcement(int minScore) {
-        return !isHit() || (judgedScore != null && judgedScore < minScore);
+        return !isHit() || (judgedScore != null && judgedScore.isBelow(minScore));
     }
 }

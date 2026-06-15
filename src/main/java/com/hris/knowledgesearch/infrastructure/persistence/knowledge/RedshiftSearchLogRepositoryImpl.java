@@ -28,12 +28,14 @@ public class RedshiftSearchLogRepositoryImpl implements SearchLogRepository {
                 + " (query_raw, query_normalized, tool, latency_ms, hit_count, judged_score)"
                 + " VALUES (:queryRaw, :queryNormalized, :tool, :latencyMs, :hitCount, :judgedScore)";
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("queryRaw", searchLog.getQueryRaw())
-                .addValue("queryNormalized", searchLog.getQueryNormalized())
+                .addValue("queryRaw", searchLog.getQueryRaw() == null ? null : searchLog.getQueryRaw().value())
+                .addValue("queryNormalized",
+                        searchLog.getQueryNormalized() == null ? null : searchLog.getQueryNormalized().value())
                 .addValue("tool", searchLog.getTool() == null ? null : searchLog.getTool().name())
-                .addValue("latencyMs", searchLog.getLatencyMs())
-                .addValue("hitCount", searchLog.getHitCount())
-                .addValue("judgedScore", searchLog.getJudgedScore());
+                .addValue("latencyMs", searchLog.getLatencyMs() == null ? null : searchLog.getLatencyMs().millis())
+                .addValue("hitCount", searchLog.getHitCount() == null ? null : searchLog.getHitCount().count())
+                .addValue("judgedScore",
+                        searchLog.getJudgedScore() == null ? null : searchLog.getJudgedScore().value());
         jdbcTemplate.update(sql, params);
         return searchLog;
     }

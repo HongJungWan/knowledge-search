@@ -121,7 +121,7 @@ public class IngestionJobConfig {
         return items -> {
             java.util.Set<String> seenInChunk = new java.util.HashSet<>();
             for (KnowledgeRecord record : items) {
-                String hash = record.getContentHash();
+                String hash = record.getContentHash().value();
                 if (!seenInChunk.add(hash)) {
                     log.info("[ETL] 청크 내 중복 skip: hash={}", hash);
                     continue;

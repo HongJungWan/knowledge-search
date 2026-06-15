@@ -23,10 +23,11 @@
 - **결과(E2E 재측정)**: coverage **0.42→0.58**, INTEGRATED P@3 **0.833→0.917**, **비정형 P@3 0.667→0.833**("대기" 등 코드 표면형이 패러프레이즈에 섞이면 코드 필터 추가 작동). `metadataAddsOverVector` 마진 +0.417로 확대.
 - **남은 정렬 과제**: KS 문서 태그 어휘(`merchant_grade`/`payout_rule`/`adjustment_type`)는 아직 MO 코드 사전과 미정렬 → 공유 코드 사전화는 후속(데이터 거버넌스).
 
-## 2. 쿼리 라우팅 — 선택적 MO 호출
-- **문제**: 현재 `KnowledgeSearchService`는 매 질의에 MO `/resolve`(2-홉) + 임베딩을 항상 수행. 비정형(패러프레이즈)에선 MO 무기여(측정: META=KEYWORD)인데도 호출 → 불필요 지연·결합.
-- **제안**: 경량 라우터 — 질의에 코드/식별자/날짜 신호가 있으면 MO 경유(정형 경로), 없으면 벡터 단독(비정형 경로). MO `unmapped`/coverage 신호를 라우팅 피드백으로 사용. 캐시(이미 Caffeine 존재)로 반복 질의 절감.
-- **기대효과**: p95 지연↓, MO 장애 시 비정형 검색 영향 격리, 구조의 역할 경계 명확화.
+## 2. 쿼리 라우팅 ✅ 완료 (2026-06-15)
+- **문제**: `KnowledgeSearchService`가 매 질의에 MO `/resolve`(2-홉)를 항상 수행. 비정형(패러프레이즈)에선 MO 무기여(측정: META=KEYWORD)인데도 호출 → 불필요 지연·결합.
+- **수행**: 도메인 서비스 `QueryRouter`(`@DomainService`, `DomainServiceConfig` 빈 등록) — 정형 신호(토큰 ≤4 **또는** 숫자/날짜 **또는** 코드형 토큰) 질의만 MO 경유, 긴 자연어는 MO 생략(`MetadataResolveResult.raw` 폴백 재사용, 벡터 단독). `search.routing.enabled` 토글(기본 OFF). 의심 시 MO 경유로 보수 편향(정밀도 보존).
+- **기대효과**: 비정형 질의의 MO 왕복·결합 제거(p95 지연↓, MO 장애 격리). 평가상 비정형은 MO 무기여라 품질 중립.
+- **검증**: `QueryRouterTest`(휴리스틱 경계), `KnowledgeSearchServiceRoutingRerankTest`(ON+비정형→MO 미호출/ON+정형→호출/OFF→항상 호출). E2E: `gold=eval`로 품질 무회귀 + MO 호출 수 감소.
 
 ## 3. 문서 청킹 ☑ 구현·측정 완료(2026-06-14) — null 결과
 - **수행**: `knowledge_chunk` 테이블(Flyway V3) + `TextChunker`(문장 청크, 제목은 별도 청크) + `PostgresKnowledgeRecordRepositoryImpl` 의 청크-aware 벡터 arm(문서의 최상 청크로 랭킹) + `search.chunking.enabled` 토글. 적재 시 청크별 임베딩.
@@ -39,6 +40,7 @@
 - **결과(E2E, 장문 코퍼스)**: 비정형 P@3 **0.667→0.833**, 전체 **0.833→0.917**, MRR 0.854→0.917, nDCG 0.833→0.917. `rerankImprovesUnstructured=true`.
 - **교훈**: 리랭커 snippet에 *구별 정보*가 들어와야 함(앞부분 공통 보일러플레이트면 짧으면 무효 → 800자). 장문 문서는 #3 청킹으로 관련 청크만 리랭커에 주는 조합이 자연스러움(시너지).
 - 비용: LLM 호출(질의당 1회) — 지연/비용 trade-off. 운영은 cross-encoder(예: bge-reranker) 서빙으로 대체 검토.
+- **라이브 연동 ✅ (2026-06-15)**: 평가 arm 전용이던 `Reranker`를 실 검색 경로(`KnowledgeSearchService.search()`)에 연동. `search.reranking.enabled` + `search.reranking.pool-size`(기본 20) 토글 — 활성 시 1차 검색 풀을 모아 `reranker.rerank` 후 상위 limit 채택(평가 `runRerankArm`과 동일). 기본 `NoOpReranker`라 플래그만으론 무해, 실효는 `llmrerank` 프로파일. 검증: `KnowledgeSearchServiceRoutingRerankTest`(ON→풀 검색+rerank/OFF→미호출).
 
 ## 5. 평가 상시화 (회귀 게이트) ✅ 완료 (2026-06-14)
 - **수행**: `scripts/eval-gate.sh` — 실행 중 KS/MO 엔드포인트의 핵심 임계값을 검사하고 회귀 시 비0 종료.
@@ -64,3 +66,7 @@
 누적 완료: **#1·#4·#5·#6(OpenSearch)·#7(nori) ✅**, #3 ☑측정완료(null). pgvector 경로 P@3 0.917 / OpenSearch 경로 **1.000**(포화). nori 는 조사 분리로 BM25 매칭 개선(토큰 레벨 입증).
 - **남은 항목**: #6 Bedrock(AWS 자격증명 대기, 코드 준비됨) · #7 RRF k 튜닝(코퍼스 포화로 측정 불가) · #2 라우팅(품질 무영향 지연 최적화).
 - **상태**: 합성 코퍼스로 측정 가능한 고가치 항목은 전부 소진(OpenSearch INTEGRATED 포화). **다음 큰 레버는 실데이터 평가셋**(운영 문서 + `search_log` 질의 로그) — 거기서만 #3 청킹·리랭킹·nori·RRF 의 실운영 가치를 정량 비교할 수 있다. 남은 #2/#7/#6 은 저ROI 또는 AWS 차단.
+
+## Value Object 전면 적용 (2026-06-15)
+- **값 객체 ✅**: `KnowledgeRecord`(KnowledgeDomain·Title·Body·SourceUrl·CodeValues·ContentHash)·`SearchLog`(RawQuery·NormalizedQuery·Latency·HitCount·JudgedScore)를 `@Embeddable` 값 객체로 전면 포장. `@AttributeOverride` 로 컬럼명 유지, QueryDSL 은 `.value`(StringPath), 외부 JSON 와이어 포맷 불변(경계 `.value()` 언랩). VO 는 final 필드 클래스(record 는 QueryDSL 5.1.0 APT 의 embeddable 미지원으로 배제).
+- **타입드 ID(PK) 미적용 — 의도적**: `KnowledgeRecord`/`SearchLog` 의 PK 는 DB `@GeneratedValue(IDENTITY)` 생성 키다. JPA 는 IDENTITY 생성 식별자에 `AttributeConverter`(타입드 ID 래핑) 적용을 지원하지 않는다(`JdbcTypeRecommendationException`). 또한 두 애그리거트는 **교차 참조가 없어** 타입드 ID 의 타입 안전 이득도 낮다 → `Long` PK 유지. (metadata-ontology 는 앱이 UUID 를 직접 배정하고 교차 참조가 있어 타입드 ID 가 적용 가능·유효 — 그쪽에서 적용.)

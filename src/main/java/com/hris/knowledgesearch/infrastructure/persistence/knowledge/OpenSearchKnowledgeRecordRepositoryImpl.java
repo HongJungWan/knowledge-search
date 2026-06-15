@@ -5,6 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.domain.knowledge.vo.Body;
+import com.hris.knowledgesearch.domain.knowledge.vo.CodeValues;
+import com.hris.knowledgesearch.domain.knowledge.vo.ContentHash;
+import com.hris.knowledgesearch.domain.knowledge.vo.KnowledgeDomain;
+import com.hris.knowledgesearch.domain.knowledge.vo.SourceUrl;
+import com.hris.knowledgesearch.domain.knowledge.vo.Title;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -142,19 +148,21 @@ public class OpenSearchKnowledgeRecordRepositoryImpl implements KnowledgeRecordR
     public KnowledgeRecord save(KnowledgeRecord record) {
         float[] embedding = embeddingProvider.embed(embedText(record));
         Map<String, Object> doc = new LinkedHashMap<>();
-        doc.put("id", derivedId(record.getContentHash()));
-        doc.put("domain", record.getDomain());
-        doc.put("title", record.getTitle());
-        doc.put("body", record.getBody());
-        doc.put("source_url", record.getSourceUrl());
-        doc.put("code_values", parseCodeValues(record.getCodeValues()));
+        String contentHash = record.getContentHash().value();
+        doc.put("id", derivedId(contentHash));
+        doc.put("domain", record.getDomain().value());
+        doc.put("title", record.getTitle().value());
+        doc.put("body", record.getBody().value());
+        doc.put("source_url", record.getSourceUrl() == null ? null : record.getSourceUrl().value());
+        doc.put("code_values",
+                parseCodeValues(record.getCodeValues() == null ? null : record.getCodeValues().value()));
         if (record.getSourceUpdatedAt() != null) {
             doc.put("source_updated_at", record.getSourceUpdatedAt().toString());
         }
-        doc.put("content_hash", record.getContentHash());
+        doc.put("content_hash", contentHash);
         doc.put("embedding", embedding);
         // _id = content_hash → 멱등 색인(중복 적재 안전). refresh=true 로 즉시 검색 가능.
-        client.put().uri("/" + INDEX + "/_doc/" + record.getContentHash() + "?refresh=true")
+        client.put().uri("/" + INDEX + "/_doc/" + contentHash + "?refresh=true")
                 .body(doc).retrieve().toBodilessEntity();
         return record;
     }
@@ -245,13 +253,13 @@ public class OpenSearchKnowledgeRecordRepositoryImpl implements KnowledgeRecordR
         String codeValuesJson = (codeValues == null || codeValues.isNull()) ? null : codeValues.toString();
         return KnowledgeRecord.builder()
                 .id(s.path("id").isMissingNode() ? null : s.path("id").asLong())
-                .domain(text(s, "domain"))
-                .title(text(s, "title"))
-                .body(text(s, "body"))
-                .sourceUrl(text(s, "source_url"))
-                .codeValues(codeValuesJson)
+                .domain(new KnowledgeDomain(text(s, "domain")))
+                .title(new Title(text(s, "title")))
+                .body(new Body(text(s, "body")))
+                .sourceUrl(text(s, "source_url") == null ? null : new SourceUrl(text(s, "source_url")))
+                .codeValues(codeValuesJson == null ? null : new CodeValues(codeValuesJson))
                 .sourceUpdatedAt(parseInstant(text(s, "source_updated_at")))
-                .contentHash(text(s, "content_hash"))
+                .contentHash(new ContentHash(text(s, "content_hash")))
                 .build();
     }
 
@@ -285,8 +293,8 @@ public class OpenSearchKnowledgeRecordRepositoryImpl implements KnowledgeRecordR
     }
 
     private static String embedText(KnowledgeRecord record) {
-        String title = record.getTitle() == null ? "" : record.getTitle();
-        String body = record.getBody() == null ? "" : record.getBody();
+        String title = record.getTitle() == null ? "" : record.getTitle().value();
+        String body = record.getBody() == null ? "" : record.getBody().value();
         return title + "\n" + body;
     }
 

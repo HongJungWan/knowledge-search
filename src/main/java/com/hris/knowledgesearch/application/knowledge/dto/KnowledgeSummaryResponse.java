@@ -42,15 +42,15 @@ public class KnowledgeSummaryResponse {
     private static final int SNIPPET_LEN = 200;
 
     public static KnowledgeSummaryResponse from(KnowledgeRecord r) {
-        String body = r.getBody() == null ? "" : r.getBody();
+        String body = r.getBody() == null ? "" : r.getBody().value();
         String snippet = body.length() > SNIPPET_LEN ? body.substring(0, SNIPPET_LEN) + "…" : body;
         return KnowledgeSummaryResponse.builder()
                 .id(r.getId())
-                .domain(r.getDomain())
-                .title(r.getTitle())
+                .domain(r.getDomain().value())
+                .title(r.getTitle().value())
                 .snippet(snippet)
-                .sourceUrl(r.getSourceUrl())
-                .codeValues(r.getCodeValues())
+                .sourceUrl(r.getSourceUrl() == null ? null : r.getSourceUrl().value())
+                .codeValues(r.getCodeValues() == null ? null : r.getCodeValues().value())
                 .sourceUpdatedAt(r.getSourceUpdatedAt())
                 .build();
     }

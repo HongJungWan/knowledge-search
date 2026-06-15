@@ -2,6 +2,12 @@ package com.hris.knowledgesearch.infrastructure.persistence.knowledge;
 
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.domain.knowledge.vo.Body;
+import com.hris.knowledgesearch.domain.knowledge.vo.CodeValues;
+import com.hris.knowledgesearch.domain.knowledge.vo.ContentHash;
+import com.hris.knowledgesearch.domain.knowledge.vo.KnowledgeDomain;
+import com.hris.knowledgesearch.domain.knowledge.vo.SourceUrl;
+import com.hris.knowledgesearch.domain.knowledge.vo.Title;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.RowMapper;
@@ -50,13 +56,13 @@ public class RedshiftKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
 
     private static final RowMapper<KnowledgeRecord> RECORD_MAPPER = (rs, rowNum) -> KnowledgeRecord.builder()
             .id(rs.getLong("id"))
-            .domain(rs.getString("domain"))
-            .title(rs.getString("title"))
-            .body(rs.getString("body"))
-            .sourceUrl(rs.getString("source_url"))
-            .codeValues(rs.getString("code_values"))
+            .domain(new KnowledgeDomain(rs.getString("domain")))
+            .title(new Title(rs.getString("title")))
+            .body(new Body(rs.getString("body")))
+            .sourceUrl(rs.getString("source_url") == null ? null : new SourceUrl(rs.getString("source_url")))
+            .codeValues(rs.getString("code_values") == null ? null : new CodeValues(rs.getString("code_values")))
             .sourceUpdatedAt(toInstant(rs.getTimestamp("source_updated_at")))
-            .contentHash(rs.getString("content_hash"))
+            .contentHash(new ContentHash(rs.getString("content_hash")))
             .build();
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -134,13 +140,13 @@ public class RedshiftKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
                 + " SELECT :domain, :title, :body, :sourceUrl, JSON_PARSE(:codeValues),"
                 + " :sourceUpdatedAt, :contentHash";
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("domain", record.getDomain())
-                .addValue("title", record.getTitle())
-                .addValue("body", record.getBody())
-                .addValue("sourceUrl", record.getSourceUrl())
-                .addValue("codeValues", record.getCodeValues())
+                .addValue("domain", record.getDomain().value())
+                .addValue("title", record.getTitle().value())
+                .addValue("body", record.getBody().value())
+                .addValue("sourceUrl", record.getSourceUrl() == null ? null : record.getSourceUrl().value())
+                .addValue("codeValues", record.getCodeValues() == null ? null : record.getCodeValues().value())
                 .addValue("sourceUpdatedAt", toTimestamp(record.getSourceUpdatedAt()))
-                .addValue("contentHash", record.getContentHash());
+                .addValue("contentHash", record.getContentHash().value());
         jdbcTemplate.update(sql, params);
         return record;
     }

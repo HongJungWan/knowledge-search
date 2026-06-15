@@ -6,9 +6,11 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.hris.knowledgesearch.shared.ddd.AggregateInternal;
 import com.hris.knowledgesearch.shared.ddd.AggregateRoot;
+import com.hris.knowledgesearch.shared.ddd.DomainService;
 import com.hris.knowledgesearch.shared.ddd.Subdomain;
 import com.hris.knowledgesearch.shared.ddd.SubdomainType;
 import com.hris.knowledgesearch.shared.ddd.ValueObject;
+import com.tngtech.archunit.core.domain.JavaCodeUnit;
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
@@ -110,6 +112,98 @@ public final class DddRules {
             .as("[DDD_REQUEST_INPUT_IS_COMMAND] @RequestBody 입력은 ..command.. 의 *Command 타입")
             // @RestController 가 실재하므로 vacuous 통과를 허용하지 않는다(어노테이션 누락 시 침묵 방지).
             .allowEmptyShould(false);
+
+    /** 도메인 순수성(어노테이션): 도메인 클래스에 Spring 스테레오타입 금지(하네스 휴리스틱을 CI 로 승격). */
+    public static final ArchRule DOMAIN_NO_SPRING_STEREOTYPES = classes().that().resideInAPackage("..domain..")
+            .should(notBeAnnotatedWithAnyOf(
+                    "org.springframework.stereotype.Service",
+                    "org.springframework.stereotype.Component",
+                    "org.springframework.stereotype.Repository",
+                    "org.springframework.stereotype.Controller",
+                    "org.springframework.web.bind.annotation.RestController",
+                    "org.springframework.transaction.annotation.Transactional",
+                    "org.springframework.beans.factory.annotation.Autowired"))
+            .as("[DDD_DOMAIN_NO_SPRING] 도메인에 Spring 스테레오타입 금지").allowEmptyShould(false);
+
+    /** 캡슐화: 도메인에 public setter 금지(@Data/@Setter 는 컴파일되면 setX 메서드로 관측됨). */
+    public static final ArchRule DOMAIN_NO_SETTERS = classes().that().resideInAPackage("..domain..")
+            .should(haveNoPublicSetter())
+            .as("[DDD_DOMAIN_NO_SETTERS] 도메인에 public setter 금지").allowEmptyShould(false);
+
+    /** 결정성: 도메인에서 시계/난수(.now()/UUID.randomUUID()/new Random()) 직접 호출 금지(주입받아라). */
+    public static final ArchRule DOMAIN_NO_NONDETERMINISM = classes().that().resideInAPackage("..domain..")
+            .should(notCallNonDeterministicApis())
+            .as("[DDD_DOMAIN_DETERMINISM] 도메인에서 시계/난수 직접 호출 금지").allowEmptyShould(false);
+
+    /** 도메인 서비스 무상태: @DomainService 의 인스턴스 필드는 final(주입 포트만). */
+    public static final ArchRule DOMAIN_SERVICE_STATELESS = fields().that()
+            .areDeclaredInClassesThat().areAnnotatedWith(DomainService.class)
+            .and().doNotHaveModifier(JavaModifier.STATIC)
+            .should().beFinal()
+            .as("[DDD_DOMAIN_SERVICE_STATELESS] 도메인 서비스는 무상태(final 필드)").allowEmptyShould(true);
+
+    /** VO 회귀 방지: 도메인 @Entity 의 (비static) String 필드 금지 → @Embedded 값 객체 사용(원시 집착 차단). */
+    public static final ArchRule DOMAIN_ENTITY_NO_RAW_STRING = fields().that()
+            .areDeclaredInClassesThat().resideInAPackage("..domain..")
+            .and().areDeclaredInClassesThat().areAnnotatedWith(Entity.class)
+            .and().doNotHaveModifier(JavaModifier.STATIC)
+            .should().notHaveRawType(String.class)
+            .as("[DDD_NO_PRIMITIVE_OBSESSION] 도메인 @Entity 의 String 필드 금지(값 객체로 포장)")
+            .allowEmptyShould(true);
+
+    private static ArchCondition<JavaClass> notBeAnnotatedWithAnyOf(String... annotationFqcns) {
+        return new ArchCondition<>("not be annotated with Spring stereotypes") {
+            @Override
+            public void check(JavaClass clazz, ConditionEvents events) {
+                for (String fqcn : annotationFqcns) {
+                    if (clazz.isAnnotatedWith(fqcn)) {
+                        events.add(SimpleConditionEvent.violated(clazz,
+                                clazz.getName() + " is annotated with forbidden " + fqcn));
+                    }
+                }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> haveNoPublicSetter() {
+        return new ArchCondition<>("have no public setter method") {
+            @Override
+            public void check(JavaClass clazz, ConditionEvents events) {
+                for (JavaMethod method : clazz.getMethods()) {
+                    if (method.getModifiers().contains(JavaModifier.PUBLIC)
+                            && method.getName().matches("set[A-Z].*")
+                            && method.getRawParameterTypes().size() == 1) {
+                        events.add(SimpleConditionEvent.violated(method,
+                                method.getFullName() + " is a public setter (도메인 캡슐화 위반)"));
+                    }
+                }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> notCallNonDeterministicApis() {
+        return new ArchCondition<>("not call now()/UUID.randomUUID()/new Random()") {
+            @Override
+            public void check(JavaClass clazz, ConditionEvents events) {
+                for (JavaCodeUnit unit : clazz.getCodeUnits()) {
+                    unit.getMethodCallsFromSelf().forEach(call -> {
+                        String target = call.getTarget().getFullName();
+                        if (target.matches("java\\.time\\.[A-Za-z]+\\.now\\(\\)")
+                                || target.equals("java.util.UUID.randomUUID()")) {
+                            events.add(SimpleConditionEvent.violated(unit,
+                                    unit.getFullName() + " calls non-deterministic " + target));
+                        }
+                    });
+                    unit.getConstructorCallsFromSelf().forEach(call -> {
+                        if (call.getTarget().getFullName().startsWith("java.util.Random.<init>")) {
+                            events.add(SimpleConditionEvent.violated(unit,
+                                    unit.getFullName() + " constructs java.util.Random"));
+                        }
+                    });
+                }
+            }
+        };
+    }
 
     private static ArchCondition<JavaClass> onlyBeAccessedWithinSameAggregate() {
         return new ArchCondition<>("only be accessed within the same aggregate (package)") {

@@ -19,4 +19,9 @@ class DddArchitectureTest {
     @ArchTest static final ArchRule aggregateRootHasFactory = DddRules.AGGREGATE_ROOT_HAS_FACTORY;
     @ArchTest static final ArchRule coreNotDependOnGeneric = DddRules.CORE_NOT_DEPEND_ON_GENERIC;
     @ArchTest static final ArchRule requestInputIsCommand = DddRules.REQUEST_INPUT_IS_COMMAND;
+    @ArchTest static final ArchRule domainNoSpringStereotypes = DddRules.DOMAIN_NO_SPRING_STEREOTYPES;
+    @ArchTest static final ArchRule domainNoSetters = DddRules.DOMAIN_NO_SETTERS;
+    @ArchTest static final ArchRule domainNoNondeterminism = DddRules.DOMAIN_NO_NONDETERMINISM;
+    @ArchTest static final ArchRule domainServiceStateless = DddRules.DOMAIN_SERVICE_STATELESS;
+    @ArchTest static final ArchRule domainEntityNoRawString = DddRules.DOMAIN_ENTITY_NO_RAW_STRING;
 }

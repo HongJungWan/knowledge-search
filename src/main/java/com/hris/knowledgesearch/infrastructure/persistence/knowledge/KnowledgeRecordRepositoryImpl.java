@@ -49,7 +49,7 @@ public class KnowledgeRecordRepositoryImpl implements KnowledgeRecordRepository 
         where.and(RECORD.deletedAt.isNull());
 
         if (StringUtils.hasText(domain)) {
-            where.and(RECORD.domain.eq(domain));
+            where.and(RECORD.domain.value.eq(domain));
         }
 
         // 키워드 매칭(토큰 OR)과 코드값 매칭(코드 AND)을 서로 OR 로 결합한다.

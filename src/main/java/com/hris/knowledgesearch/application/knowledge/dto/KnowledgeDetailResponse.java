@@ -44,7 +44,7 @@ public class KnowledgeDetailResponse {
     public static KnowledgeDetailResponse from(KnowledgeRecord r) {
         return KnowledgeDetailResponse.builder()
                 .id(r.getId())
-                .domain(r.getDomain())
+                .domain(r.getDomain().value())
                 .title(r.getTitle())
                 .body(r.getBody())
                 .sourceUrl(r.getSourceUrl())

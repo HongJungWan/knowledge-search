@@ -3,6 +3,7 @@ package com.hris.knowledgesearch.infrastructure.persistence.knowledge;
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.domain.knowledge.vo.KnowledgeDomain;
 import com.hris.knowledgesearch.infrastructure.embedding.TextChunker;
 import com.hris.knowledgesearch.infrastructure.embedding.VectorLiterals;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,7 +53,7 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
 
     private static final RowMapper<KnowledgeRecord> RECORD_MAPPER = (rs, rowNum) -> KnowledgeRecord.builder()
             .id(rs.getLong("id"))
-            .domain(rs.getString("domain"))
+            .domain(new KnowledgeDomain(rs.getString("domain")))
             .title(rs.getString("title"))
             .body(rs.getString("body"))
             .sourceUrl(rs.getString("source_url"))
@@ -189,7 +190,7 @@ public class PostgresKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
                 + " VALUES (:domain, :title, :body, :sourceUrl, CAST(:codeValues AS jsonb),"
                 + " :sourceUpdatedAt, :contentHash, CAST(:embedding AS vector)) RETURNING id";
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("domain", record.getDomain())
+                .addValue("domain", record.getDomain().value())
                 .addValue("title", record.getTitle())
                 .addValue("body", record.getBody())
                 .addValue("sourceUrl", record.getSourceUrl())

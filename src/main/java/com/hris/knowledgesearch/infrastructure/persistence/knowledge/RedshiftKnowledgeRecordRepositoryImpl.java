@@ -2,6 +2,7 @@ package com.hris.knowledgesearch.infrastructure.persistence.knowledge;
 
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.domain.knowledge.vo.KnowledgeDomain;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.RowMapper;
@@ -50,7 +51,7 @@ public class RedshiftKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
 
     private static final RowMapper<KnowledgeRecord> RECORD_MAPPER = (rs, rowNum) -> KnowledgeRecord.builder()
             .id(rs.getLong("id"))
-            .domain(rs.getString("domain"))
+            .domain(new KnowledgeDomain(rs.getString("domain")))
             .title(rs.getString("title"))
             .body(rs.getString("body"))
             .sourceUrl(rs.getString("source_url"))
@@ -134,7 +135,7 @@ public class RedshiftKnowledgeRecordRepositoryImpl implements KnowledgeRecordRep
                 + " SELECT :domain, :title, :body, :sourceUrl, JSON_PARSE(:codeValues),"
                 + " :sourceUpdatedAt, :contentHash";
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("domain", record.getDomain())
+                .addValue("domain", record.getDomain().value())
                 .addValue("title", record.getTitle())
                 .addValue("body", record.getBody())
                 .addValue("sourceUrl", record.getSourceUrl())

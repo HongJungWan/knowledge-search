@@ -95,6 +95,15 @@ search:
   # 벡터 arm 이 문서의 최상 청크로 랭킹(장문 희석 회피). 기본 false(통째-임베딩).
   chunking:
     enabled: false
+  # 질의 라우팅(로드맵 #2) — true 면 정형 신호(짧은 키워드구·숫자·코드형) 질의만 MO 경유하고
+  # 긴 자연어 질의는 MO 왕복을 생략(벡터 단독). 품질 중립(평가상 비정형은 MO 무기여), 지연·결합↓. 기본 false.
+  routing:
+    enabled: false
+  # 리랭킹 라이브 연동(로드맵 #4) — true 면 1차 검색 후보 풀(pool-size)을 Reranker 로 재정렬 후 상위 limit 채택.
+  # 실효는 llmrerank 프로파일(LlmJudgeReranker)에서. 기본 NoOpReranker 라 플래그만으론 무해. 기본 false.
+  reranking:
+    enabled: false
+    pool-size: 20
 
 # --- 임베딩 (하이브리드 검색 벡터 arm) ---
 # dimension 은 pgvector 컬럼 vector(N) 과 반드시 일치해야 한다(부팅 시 검증). 기본 구현은 결정론적 해싱

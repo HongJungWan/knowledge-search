@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.domain.knowledge.vo.KnowledgeDomain;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -143,7 +144,7 @@ public class OpenSearchKnowledgeRecordRepositoryImpl implements KnowledgeRecordR
         float[] embedding = embeddingProvider.embed(embedText(record));
         Map<String, Object> doc = new LinkedHashMap<>();
         doc.put("id", derivedId(record.getContentHash()));
-        doc.put("domain", record.getDomain());
+        doc.put("domain", record.getDomain().value());
         doc.put("title", record.getTitle());
         doc.put("body", record.getBody());
         doc.put("source_url", record.getSourceUrl());
@@ -245,7 +246,7 @@ public class OpenSearchKnowledgeRecordRepositoryImpl implements KnowledgeRecordR
         String codeValuesJson = (codeValues == null || codeValues.isNull()) ? null : codeValues.toString();
         return KnowledgeRecord.builder()
                 .id(s.path("id").isMissingNode() ? null : s.path("id").asLong())
-                .domain(text(s, "domain"))
+                .domain(new KnowledgeDomain(text(s, "domain")))
                 .title(text(s, "title"))
                 .body(text(s, "body"))
                 .sourceUrl(text(s, "source_url"))

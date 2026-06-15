@@ -7,6 +7,8 @@ import com.hris.knowledgesearch.application.knowledge.port.SchemaCatalogResult;
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecord;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.domain.knowledge.QueryRouter;
+import com.hris.knowledgesearch.domain.knowledge.Reranker;
 import com.hris.knowledgesearch.domain.knowledge.SearchLog;
 import com.hris.knowledgesearch.domain.knowledge.SearchLogRepository;
 import com.hris.knowledgesearch.domain.knowledge.ToolName;
@@ -15,8 +17,8 @@ import com.hris.knowledgesearch.global.exception.ErrorCode;
 import com.hris.knowledgesearch.application.knowledge.dto.KnowledgeDetailResponse;
 import com.hris.knowledgesearch.application.knowledge.dto.KnowledgeSummaryResponse;
 import com.hris.knowledgesearch.application.knowledge.dto.SchemaInfoResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -31,7 +33,6 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class KnowledgeSearchService {
 
     private static final int DEFAULT_LIMIT = 10;
@@ -42,6 +43,37 @@ public class KnowledgeSearchService {
     private final MetadataResolvePort metadataPort;
     private final SchemaCatalogPort schemaCatalogPort;
     private final EmbeddingProvider embeddingProvider;
+    private final QueryRouter queryRouter;
+    private final Reranker reranker;
+
+    /** 질의 라우팅(#2): 정형 신호 질의만 MO 경유. 기본 OFF(현행 동작 유지). */
+    private final boolean routingEnabled;
+    /** 리랭킹 라이브 연동(#4): 후보 풀을 Reranker 로 재정렬. 기본 OFF. */
+    private final boolean rerankingEnabled;
+    /** 리랭킹 활성 시 1차 검색 후보 풀 크기(이후 limit 으로 절단). */
+    private final int rerankPoolSize;
+
+    public KnowledgeSearchService(KnowledgeRecordRepository knowledgeRecordRepository,
+                                  SearchLogRepository searchLogRepository,
+                                  MetadataResolvePort metadataPort,
+                                  SchemaCatalogPort schemaCatalogPort,
+                                  EmbeddingProvider embeddingProvider,
+                                  QueryRouter queryRouter,
+                                  Reranker reranker,
+                                  @Value("${search.routing.enabled:false}") boolean routingEnabled,
+                                  @Value("${search.reranking.enabled:false}") boolean rerankingEnabled,
+                                  @Value("${search.reranking.pool-size:20}") int rerankPoolSize) {
+        this.knowledgeRecordRepository = knowledgeRecordRepository;
+        this.searchLogRepository = searchLogRepository;
+        this.metadataPort = metadataPort;
+        this.schemaCatalogPort = schemaCatalogPort;
+        this.embeddingProvider = embeddingProvider;
+        this.queryRouter = queryRouter;
+        this.reranker = reranker;
+        this.routingEnabled = routingEnabled;
+        this.rerankingEnabled = rerankingEnabled;
+        this.rerankPoolSize = rerankPoolSize;
+    }
 
     /**
      * 지식 검색 (search_knowledge).
@@ -61,7 +93,10 @@ public class KnowledgeSearchService {
         int effectiveLimit = clampLimit(limit);
 
         // 1) metadata 로 정규화·매핑 (비활성 시 원본 질의 폴백)
-        MetadataResolveResult resolved = metadataPort.resolve(query);
+        // 라우팅(#2): 활성 시 정형 신호 없는 긴 자연어 질의는 MO 왕복을 생략(벡터 단독). 기본 OFF.
+        MetadataResolveResult resolved = (routingEnabled && !queryRouter.shouldResolveViaMetadata(query))
+                ? MetadataResolveResult.raw(query)
+                : metadataPort.resolve(query);
         String normalized = resolved.normalizedQuery();
 
         // metadata 가 코드값 매핑을 준 경우 filters 에 보강 (호출자 filters 우선)
@@ -73,8 +108,13 @@ public class KnowledgeSearchService {
         float[] queryEmbedding = knowledgeRecordRepository.supportsVectorSearch()
                 ? embeddingProvider.embed(normalized)
                 : null;
+        // 리랭킹(#4) 활성 시 더 큰 후보 풀을 모아 재정렬 후 상위 limit 채택. 기본 OFF(풀=limit, 재정렬 없음).
+        int pool = rerankingEnabled ? Math.max(effectiveLimit, rerankPoolSize) : effectiveLimit;
         List<KnowledgeRecord> records =
-                knowledgeRecordRepository.search(domain, normalized, codeValues, queryEmbedding, effectiveLimit);
+                knowledgeRecordRepository.search(domain, normalized, codeValues, queryEmbedding, pool);
+        if (rerankingEnabled) {
+            records = reranker.rerank(query, records, effectiveLimit);
+        }
 
         // 3) 요약 변환
         List<KnowledgeSummaryResponse> summaries = records.stream()

@@ -5,6 +5,8 @@ import com.hris.knowledgesearch.application.knowledge.port.MetadataResolvePort;
 import com.hris.knowledgesearch.application.knowledge.port.SchemaCatalogPort;
 import com.hris.knowledgesearch.domain.knowledge.EmbeddingProvider;
 import com.hris.knowledgesearch.domain.knowledge.KnowledgeRecordRepository;
+import com.hris.knowledgesearch.domain.knowledge.QueryRouter;
+import com.hris.knowledgesearch.domain.knowledge.Reranker;
 import com.hris.knowledgesearch.domain.knowledge.SearchLogRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,11 +43,19 @@ class KnowledgeSearchServiceVectorGuardTest {
     SchemaCatalogPort schemaCatalogPort;
     @Mock
     EmbeddingProvider embeddingProvider;
+    @Mock
+    Reranker reranker;
+
+    /** 라우팅·리랭킹 모두 OFF(기본) 서비스. 이 가드는 R1 임베딩 생략만 검증한다. */
+    private KnowledgeSearchService newService() {
+        return new KnowledgeSearchService(
+                knowledgeRecordRepository, searchLogRepository, metadataPort, schemaCatalogPort,
+                embeddingProvider, new QueryRouter(), reranker, false, false, 20);
+    }
 
     @Test
     void doesNotEmbedWhenRepositoryHasNoVectorSupport() {
-        KnowledgeSearchService service = new KnowledgeSearchService(
-                knowledgeRecordRepository, searchLogRepository, metadataPort, schemaCatalogPort, embeddingProvider);
+        KnowledgeSearchService service = newService();
         when(metadataPort.resolve(anyString())).thenReturn(MetadataResolveResult.raw("미정산"));
         when(knowledgeRecordRepository.supportsVectorSearch()).thenReturn(false);
         when(knowledgeRecordRepository.search(any(), anyString(), any(), isNull(), anyInt()))
@@ -59,8 +69,7 @@ class KnowledgeSearchServiceVectorGuardTest {
 
     @Test
     void embedsWhenRepositorySupportsVectorSearch() {
-        KnowledgeSearchService service = new KnowledgeSearchService(
-                knowledgeRecordRepository, searchLogRepository, metadataPort, schemaCatalogPort, embeddingProvider);
+        KnowledgeSearchService service = newService();
         float[] vec = new float[] {0.1f, 0.2f};
         when(metadataPort.resolve(anyString())).thenReturn(MetadataResolveResult.raw("미정산"));
         when(knowledgeRecordRepository.supportsVectorSearch()).thenReturn(true);

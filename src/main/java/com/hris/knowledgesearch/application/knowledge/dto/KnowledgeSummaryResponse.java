@@ -46,7 +46,7 @@ public class KnowledgeSummaryResponse {
         String snippet = body.length() > SNIPPET_LEN ? body.substring(0, SNIPPET_LEN) + "…" : body;
         return KnowledgeSummaryResponse.builder()
                 .id(r.getId())
-                .domain(r.getDomain())
+                .domain(r.getDomain().value())
                 .title(r.getTitle())
                 .snippet(snippet)
                 .sourceUrl(r.getSourceUrl())

@@ -1,10 +1,13 @@
 package com.hris.knowledgesearch.domain.knowledge;
 
+import com.hris.knowledgesearch.domain.knowledge.vo.KnowledgeDomain;
 import com.hris.knowledgesearch.global.common.BaseEntity;
 import com.hris.knowledgesearch.shared.ddd.AggregateRoot;
 import com.hris.knowledgesearch.shared.ddd.Subdomain;
 import com.hris.knowledgesearch.shared.ddd.SubdomainType;
+import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -56,8 +59,9 @@ public class KnowledgeRecord extends BaseEntity {
     private Long id;
 
     /** 도메인 (예: SETTLEMENT) */
-    @Column(name = "domain", nullable = false, length = 100)
-    private String domain;
+    @Embedded
+    @AttributeOverride(name = "value", column = @Column(name = "domain", nullable = false, length = 100))
+    private KnowledgeDomain domain;
 
     /** 제목 */
     @Column(name = "title", nullable = false, length = 500)
@@ -103,9 +107,6 @@ public class KnowledgeRecord extends BaseEntity {
      */
     public static KnowledgeRecord forIngestion(String domain, String title, String body, String sourceUrl,
                                                String codeValues, Instant sourceUpdatedAt, String contentHash) {
-        if (domain == null || domain.isBlank()) {
-            throw new IllegalArgumentException("domain 은 비어있을 수 없습니다");
-        }
         if (title == null || title.isBlank()) {
             throw new IllegalArgumentException("title 은 비어있을 수 없습니다");
         }
@@ -116,7 +117,7 @@ public class KnowledgeRecord extends BaseEntity {
             throw new IllegalArgumentException("contentHash 는 64자리 16진 SHA-256 이어야 합니다: " + contentHash);
         }
         return KnowledgeRecord.builder()
-                .domain(domain)
+                .domain(new KnowledgeDomain(domain))
                 .title(title)
                 .body(body)
                 .sourceUrl(sourceUrl)
@@ -128,7 +129,7 @@ public class KnowledgeRecord extends BaseEntity {
 
     /** 주어진 도메인에 속하는 레코드인지. */
     public boolean belongsTo(String domain) {
-        return this.domain != null && this.domain.equals(domain);
+        return this.domain != null && this.domain.value().equals(domain);
     }
 
     /**

@@ -80,7 +80,7 @@
 - **query-target VO 적용 완료**: `domain`/`title`/`body`/`codeValues`/`contentHash`/`sourceUrl` 을 모두 `@ValueObject`(`domain/knowledge/vo`)로 포장했다. QueryDSL 질의·랭킹 경로는 VO 내부 원시값 매핑으로 보존(동작 동일). 회귀는 ArchUnit `DDD_VO_IMMUTABLE`·`DDD_NO_PRIMITIVE_OBSESSION` 가 차단. (과거엔 깨짐 리스크로 보류였으나 해소됨.)
 - **도메인 이벤트 미도입**: 소비자(consumer)가 아직 없음. 이벤트만 발행하면 데드코드. 필요 시점에 도입.
 - **포트/어댑터(검증된 검색 보존)**: 도메인 포트는 앱/ETL 이 쓰는 메서드만 가진 순수 인터페이스(`search`/`findById`/`existsByContentHash`/`save`). QueryDSL 랭킹·토큰 OR·코드값 매칭·기간 토큰 skip 로직은 `KnowledgeRecordRepositoryImpl` 에 그대로 둔다(동작 동일).
-- **차단(block) 규칙**: 도메인에 `@Service`/`@Transactional`/`@Setter`/`@Data`/public setter/`.now()`/`UUID.randomUUID()` 금지 · 빈약 엔티티 금지 · 필드주입(`@Autowired`) 금지(생성자 주입) · domain→바깥레이어 임포트 금지 · application→infra 임포트 금지(포트 사용) · 도메인 `*RepositoryImpl` 파일명 금지 · `./gradlew`만 사용.
+- **차단(block) 규칙**: 도메인에 `@Service`/`@Transactional`/`@Setter`/`@Data`/public setter/`.now()`/`Math.random()`/`new Random()`/`UUID.randomUUID()` 금지 · 빈약 엔티티 금지 · 필드주입(`@Autowired`) 금지(생성자 주입) · domain→바깥레이어 임포트 금지 · application→infra 임포트 금지(포트 사용) · 도메인 `*RepositoryImpl` 파일명 금지 · `./gradlew`만 사용.
 - **application↛infra 경계**: metadata 호출은 `application.knowledge.port.MetadataResolvePort`(포트=ACL)에 의존, 구현은 `infrastructure.metadata.MetadataClient`.
 - **ACL(anti-corruption)**: ① metadata 컨텍스트 → `MetadataResolvePort`/`MetadataClient`(포트+어댑터가 ACL 역할). ② 외부 정산 소스 → `application.knowledge.port.SettlementSourceAcl`(인터페이스) + `infrastructure.etl.SettlementSourceAclAdapter`(정규화·해시·기본값·검증). ETL 프로세서는 ACL 호출 후 `KnowledgeRecord.forIngestion(...)`. 컨텍스트 맵: `.claude/docs/context-map.md`.
 - **입력 커맨드**: REST `@RequestBody`는 `command.SearchKnowledgeCommand`(record, `@NotBlank`+compact 생성자 검증). 서비스 시그니처는 primitives 유지(최소 변경, 동작 동일). MCP 도구는 영향 없음.

@@ -21,3 +21,25 @@
 
 ## 결과
 - 두 프로젝트 모두 신규 룰 포함 `./gradlew test` GREEN(기존 코드가 이미 하네스 0차단이라 부합). 25개 체크리스트 중 CI 강제 범위가 ~11 → 16 항목으로 확대.
+
+---
+
+## 추가 (2026-06-17) — opinionated-harness-template PR #13 동기화 (16 → 20)
+
+> 상태: Accepted. 컨텍스트: 템플릿이 ArchUnit 룰을 10→18로 확대(PR #13)하고 휴리스틱 기본을 all-block 으로 문서 동기화. 본 레포도 18룰 기반으로 리싱크하되 자체 2룰과 더 강한 로컬 변형은 유지.
+
+### 변경
+- **신규 4룰 추가**(템플릿 PR #13):
+  | 룰 | 강제 내용 |
+  |---|---|
+  | `AGGREGATE_ID_FIELD_IS_TYPED` | AR/AggregateInternal 의 다른 애그리거트 참조 식별자(`*Id`)는 전용 VO. 자체 surrogate(`id`/`@Id`/`@EmbeddedId`)는 면제 |
+  | `NO_AUTOWIRED_IN_DOMAIN` | 도메인 멤버(필드/생성자/메서드) 전반 `@Autowired` 금지 |
+  | `AGGREGATE_NO_EXPOSED_MUTABLE_COLLECTION` | AR public 인스턴스 메서드가 raw `List/Set/Map` 반환 금지 |
+  | `COMMAND_IS_IMMUTABLE` | `..application..` 의 `*Command` 는 record 또는 불변(setter 無·필드 final) |
+- **명명/구현 리싱크**: 템플릿 정본 명명 채택 — `DOMAIN_NO_SPRING_STEREOTYPES`→`NO_SPRING_STEREOTYPES_IN_DOMAIN`, `DOMAIN_NO_SETTERS`→`DOMAIN_NO_PUBLIC_SETTER`, `DOMAIN_NO_NONDETERMINISM`→`DOMAIN_NO_NONDETERMINISTIC_API`. 비결정성 탐지는 `Math.random`·`ThreadLocalRandom`·`SecureRandom`·`System.currentTimeMillis/nanoTime` 까지 확장.
+- **더 강한 로컬 변형 유지**: `REQUEST_INPUT_IS_COMMAND` 는 템플릿의 application `*Request` 명명 금지 대신 ks 기존의 **@RestController @RequestBody 파라미터 타입 = `..command.. *Command`** 검사를 유지(실제 컨트롤러 입력을 검증해 더 엄격).
+- **자체 2룰 유지**: `APPLICATION_NOT_DEPEND_ON_INFRASTRUCTURE`·`DOMAIN_ENTITY_NO_RAW_STRING`(템플릿엔 없음).
+- **게이트 약화 금지**: 템플릿 드롭인의 `allowEmptyShould(true)` 로 되돌리지 않고, 매칭 타입이 실재하는 룰은 `false` 유지(침묵 통과 방지). 매칭이 비어 있을 수 있는 `AGGREGATE_ACCESS`·`CORE_NOT_DEPEND_ON_GENERIC`(GENERIC 부재)·`DOMAIN_SERVICE_STATELESS`·`DOMAIN_ENTITY_NO_RAW_STRING` 만 `true`.
+
+### 결과
+- `./gradlew test` 20룰 GREEN, 신규 4룰 모두 비-vacuous 평가(프로덕션 코드 수정 0건 — query-target 필드가 이미 `@ValueObject`, surrogate `id` 는 Typed-ID 면제, AR 컬렉션 노출 0, 전 Command 가 record). CI 강제 범위 16 → 20.

@@ -19,9 +19,15 @@ class DddArchitectureTest {
     @ArchTest static final ArchRule aggregateRootHasFactory = DddRules.AGGREGATE_ROOT_HAS_FACTORY;
     @ArchTest static final ArchRule coreNotDependOnGeneric = DddRules.CORE_NOT_DEPEND_ON_GENERIC;
     @ArchTest static final ArchRule requestInputIsCommand = DddRules.REQUEST_INPUT_IS_COMMAND;
-    @ArchTest static final ArchRule domainNoSpringStereotypes = DddRules.DOMAIN_NO_SPRING_STEREOTYPES;
-    @ArchTest static final ArchRule domainNoSetters = DddRules.DOMAIN_NO_SETTERS;
-    @ArchTest static final ArchRule domainNoNondeterminism = DddRules.DOMAIN_NO_NONDETERMINISM;
+    @ArchTest static final ArchRule noSpringInDomain = DddRules.NO_SPRING_STEREOTYPES_IN_DOMAIN;
+    @ArchTest static final ArchRule domainNoPublicSetter = DddRules.DOMAIN_NO_PUBLIC_SETTER;
+    @ArchTest static final ArchRule domainNoNondeterministicApi = DddRules.DOMAIN_NO_NONDETERMINISTIC_API;
     @ArchTest static final ArchRule domainServiceStateless = DddRules.DOMAIN_SERVICE_STATELESS;
+    // opinionated-harness-template PR #13 신규 4규칙
+    @ArchTest static final ArchRule aggregateIdFieldIsTyped = DddRules.AGGREGATE_ID_FIELD_IS_TYPED;
+    @ArchTest static final ArchRule noAutowiredInDomain = DddRules.NO_AUTOWIRED_IN_DOMAIN;
+    @ArchTest static final ArchRule aggregateNoExposedCollection = DddRules.AGGREGATE_NO_EXPOSED_MUTABLE_COLLECTION;
+    @ArchTest static final ArchRule commandIsImmutable = DddRules.COMMAND_IS_IMMUTABLE;
+    // 본 레포 자체 강화 규칙
     @ArchTest static final ArchRule domainEntityNoRawString = DddRules.DOMAIN_ENTITY_NO_RAW_STRING;
 }

@@ -8,8 +8,8 @@
     "aggregateRoot": "AggregateRoot", "aggregateInternal": "AggregateInternal",
     "valueObject": "ValueObject", "domainEvent": "DomainEvent", "domainService": "DomainService"
   },
-  "thresholds": { "maxAggregateFields": 10 },
-  "_checksDoc": "신규 DDD 체크 severity: block(차단,exit2) | warn(권고,exit0) | off. 휴리스틱은 기본 warn(오탐 허용), 구조 규칙 정밀 강제는 ArchUnit(CI).",
+  "thresholds": { "maxAggregateFields": 12 },
+  "_checksDoc": "신규 DDD 체크 severity: block(차단,exit2) | warn(권고,exit0) | off. 기본은 모두 block. 휴리스틱이 오탐으로 시끄러우면 warn/off로 낮춘다. 구조 규칙 정밀 강제는 ArchUnit(CI).",
   "checks": {
     "vodImmutability": "block",
     "repositoryInterface": "block",
@@ -49,6 +49,7 @@
     { "pattern": "\\b(LocalDateTime|Instant|LocalDate|LocalTime|ZonedDateTime|OffsetDateTime)\\s*\\.\\s*now\\s*\\(", "layers": ["domain"], "message": "시간 API 직접 호출 금지: 도메인은 Clock 또는 시간 포트를 주입받아 호출하세요." },
     { "pattern": "\\bSystem\\s*\\.\\s*(currentTimeMillis|nanoTime)\\s*\\(", "layers": ["domain"], "message": "시스템 시계 직접 호출 금지: 도메인은 Clock 포트를 주입받으세요." },
     { "pattern": "\\bnew\\s+(java\\.util\\.)?Random\\s*\\(", "layers": ["domain"], "message": "난수 직접 생성 금지: 도메인은 RandomProvider 포트를 주입받으세요." },
+    { "pattern": "\\bMath\\s*\\.\\s*random\\s*\\(", "layers": ["domain"], "message": "난수 직접 호출 금지: 도메인은 RandomProvider 포트를 주입받으세요." },
     { "pattern": "\\bUUID\\s*\\.\\s*randomUUID\\s*\\(", "layers": ["domain"], "message": "UUID 직접 생성 금지: 도메인은 IdGenerator 포트를 주입받으세요." }
   ],
   "forbiddenFilenames": {

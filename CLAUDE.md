@@ -68,7 +68,7 @@
 | 용어 | 의미 |
 |---|---|
 | **KnowledgeRecord** | 정형 사내 지식 한 건(애그리거트 루트, CORE). `domain`으로 분류, `codeValues`로 코드값 검색. |
-| **KnowledgeDomain** | 지식 분류 축(예: `SETTLEMENT`). `KnowledgeRecord.domain` 필드. QueryDSL 질의 대상이므로 VO 미적용(아래 Deferred). |
+| **KnowledgeDomain** | 지식 분류 축(예: `SETTLEMENT`). `KnowledgeRecord.domain` 필드. `@ValueObject`(`domain/knowledge/vo`)로 포장됨. |
 | **StandardizedQuery** | metadata 가 정규화한 질의(`MetadataResolveResult.normalizedQuery`). 비활성 시 원본 질의 폴백. |
 | **CodeFilter** | 코드값 일치 필터(`{"settlement_status":"PENDING"}`). 호출자 filters 가 metadata 매핑보다 우선. |
 | **SearchKnowledgeCommand** | 검색 입력 커맨드(REST `@RequestBody`). 요청 DTO 를 대체. JSON 형태는 기존과 동일. |
@@ -77,12 +77,12 @@
 | **SearchLog** | 검색 호출 로그(SUPPORTING). 미적중·저점수 질의를 사전 보강 후보로 식별. |
 
 ### Deferred (근거 동봉)
-- **query-target VO 미도입**: `domain`/`codeValues`/`contentHash`/`sourceUrl` 은 QueryDSL 질의·인덱스 대상이라 VO 로 감싸면 검색 SQL/랭킹 경로가 깨질 위험. 현 단계에선 String 유지(동작 보존 우선).
+- **query-target VO 적용 완료**: `domain`/`title`/`body`/`codeValues`/`contentHash`/`sourceUrl` 을 모두 `@ValueObject`(`domain/knowledge/vo`)로 포장했다. QueryDSL 질의·랭킹 경로는 VO 내부 원시값 매핑으로 보존(동작 동일). 회귀는 ArchUnit `DDD_VO_IMMUTABLE`·`DDD_NO_PRIMITIVE_OBSESSION` 가 차단. (과거엔 깨짐 리스크로 보류였으나 해소됨.)
 - **도메인 이벤트 미도입**: 소비자(consumer)가 아직 없음. 이벤트만 발행하면 데드코드. 필요 시점에 도입.
 - **포트/어댑터(검증된 검색 보존)**: 도메인 포트는 앱/ETL 이 쓰는 메서드만 가진 순수 인터페이스(`search`/`findById`/`existsByContentHash`/`save`). QueryDSL 랭킹·토큰 OR·코드값 매칭·기간 토큰 skip 로직은 `KnowledgeRecordRepositoryImpl` 에 그대로 둔다(동작 동일).
 - **차단(block) 규칙**: 도메인에 `@Service`/`@Transactional`/`@Setter`/`@Data`/public setter/`.now()`/`UUID.randomUUID()` 금지 · 빈약 엔티티 금지 · 필드주입(`@Autowired`) 금지(생성자 주입) · domain→바깥레이어 임포트 금지 · application→infra 임포트 금지(포트 사용) · 도메인 `*RepositoryImpl` 파일명 금지 · `./gradlew`만 사용.
 - **application↛infra 경계**: metadata 호출은 `application.knowledge.port.MetadataResolvePort`(포트=ACL)에 의존, 구현은 `infrastructure.metadata.MetadataClient`.
 - **ACL(anti-corruption)**: ① metadata 컨텍스트 → `MetadataResolvePort`/`MetadataClient`(포트+어댑터가 ACL 역할). ② 외부 정산 소스 → `application.knowledge.port.SettlementSourceAcl`(인터페이스) + `infrastructure.etl.SettlementSourceAclAdapter`(정규화·해시·기본값·검증). ETL 프로세서는 ACL 호출 후 `KnowledgeRecord.forIngestion(...)`. 컨텍스트 맵: `.claude/docs/context-map.md`.
 - **입력 커맨드**: REST `@RequestBody`는 `command.SearchKnowledgeCommand`(record, `@NotBlank`+compact 생성자 검증). 서비스 시그니처는 primitives 유지(최소 변경, 동작 동일). MCP 도구는 영향 없음.
-- **ArchUnit**(`src/test/java/.../archunit`) 11종: DOMAIN_PURITY · REPOSITORY_IMPL_IN_INFRA · AGGREGATE_ACCESS · ID_REFERENCE_BETWEEN_AGGREGATES · VALUE_OBJECT_IMMUTABLE · NO_FIELD_INJECTION · DOMAIN_ENTITY_MARKED · AGGREGATE_ROOT_HAS_FACTORY · CORE_NOT_DEPEND_ON_GENERIC(GENERIC 부재로 vacuous) · REQUEST_INPUT_IS_COMMAND(@RequestBody→`*Command`) · APPLICATION_NOT_DEPEND_ON_INFRASTRUCTURE(application→infrastructure 의존 금지). `./gradlew test` 에서 함께 돈다. CI: `.github/workflows/ddd-archunit.yml`.
+- **ArchUnit**(`src/test/java/.../archunit`) **20종** = opinionated-harness-template 18 + 자체 2. 기존: DOMAIN_PURITY · REPOSITORY_IMPL_IN_INFRA · AGGREGATE_ACCESS · ID_REFERENCE_BETWEEN_AGGREGATES · VALUE_OBJECT_IMMUTABLE · NO_FIELD_INJECTION · DOMAIN_ENTITY_MARKED · AGGREGATE_ROOT_HAS_FACTORY · CORE_NOT_DEPEND_ON_GENERIC(GENERIC 부재로 vacuous) · REQUEST_INPUT_IS_COMMAND(@RequestBody→`*Command` — 템플릿 *Request 명명 금지보다 강한 로컬 변형) · NO_SPRING_STEREOTYPES_IN_DOMAIN · DOMAIN_NO_PUBLIC_SETTER · DOMAIN_NO_NONDETERMINISTIC_API · DOMAIN_SERVICE_STATELESS. 템플릿 PR #13 신규: AGGREGATE_ID_FIELD_IS_TYPED · NO_AUTOWIRED_IN_DOMAIN · AGGREGATE_NO_EXPOSED_MUTABLE_COLLECTION · COMMAND_IS_IMMUTABLE. 자체: APPLICATION_NOT_DEPEND_ON_INFRASTRUCTURE · DOMAIN_ENTITY_NO_RAW_STRING. `./gradlew test` 에서 함께 돈다. 표·운용은 `docs/ARCHUNIT.md`. CI: `.github/workflows/ddd-archunit.yml`.
 - **커맨드**: `/ddd-review`(변경분 감사) · `/ddd-fix`(점진 수정) · `/verify`(훅+테스트). 훅 실행에 Node.js 필요.

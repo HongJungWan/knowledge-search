@@ -8,7 +8,7 @@
 //   checklist  (Stop)                             — 완료 전 자가 체크리스트
 //
 // 설계: 절대 에이전트 루프를 깨지 않는다(예외는 삼키고 exit 0). 정규식 + import-follow(참조 타입 파일만
-// 읽음, 전체 repo 스캔 X). 휴리스틱은 기본 warn. 정밀 강제는 ArchUnit(CI)이 보완.
+// 읽음, 전체 repo 스캔 X). 휴리스틱도 기본 block(config의 checks에서 warn/off로 조정). 정밀 강제는 ArchUnit(CI)이 보완.
 
 import { readFileSync, existsSync } from "node:fs";
 import { extname, basename, join } from "node:path";
